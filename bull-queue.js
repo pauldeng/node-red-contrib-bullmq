@@ -1,399 +1,582 @@
-/**
- * Copyright 2013,2015 IBM Corp.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **/
+"use strict";
 
-module.exports = function(RED) {
-  "use strict";
+const { EventEmitter, once } = require("node:events");
 
-  var sprintf = require("sprintf-js").sprintf;
-  var Queue = require("bull");
+const {
+  FlowProducer,
+  Queue,
+  QueueEvents,
+  UnrecoverableError,
+  Worker,
+} = require("bullmq");
+const IORedis = require("ioredis");
+
+const { dispatchCommand } = require("./lib/commands");
+const {
+  buildBullMQOptions,
+  buildRedisDescriptor,
+  createRedisConnection,
+  normalizeQueueConfig,
+} = require("./lib/connections");
+const { serializeFlowJob, serializeJob } = require("./lib/serialization");
+
+const DEFAULT_EVENTS = [
+  "active",
+  "added",
+  "cleaned",
+  "completed",
+  "deduplicated",
+  "delayed",
+  "drained",
+  "duplicated",
+  "failed",
+  "paused",
+  "progress",
+  "removed",
+  "resumed",
+  "stalled",
+  "waiting",
+  "waiting-children",
+];
+
+async function closeResource(resource) {
+  if (!resource) {
+    return;
+  }
+  if (typeof resource.close === "function") {
+    await resource.close();
+    return;
+  }
+  if (typeof resource.quit === "function") {
+    await resource.quit();
+    return;
+  }
+  if (typeof resource.disconnect === "function") {
+    resource.disconnect();
+  }
+}
+
+function nodeSend(node, send, msg) {
+  (send || node.send).call(node, msg);
+}
+
+function nodeDone(node, done, err, msg) {
+  if (done) {
+    done(err);
+  } else if (err) {
+    node.error(err, msg);
+  }
+}
+
+function parsePositiveInteger(value, defaultValue) {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`Expected a positive integer, got ${value}`);
+  }
+  return parsed;
+}
+
+function parseEventFilter(value) {
+  if (!value) {
+    return DEFAULT_EVENTS;
+  }
+  return String(value)
+    .split(/[\n,]+/)
+    .map((event) => event.trim())
+    .filter(Boolean);
+}
+
+function attachErrorListener(resource, node, label) {
+  if (!resource || typeof resource.on !== "function") {
+    return;
+  }
+  resource.on("error", (err) => {
+    node.status({ fill: "red", shape: "ring", text: `${label}: error` });
+    node.error(err);
+  });
+}
+
+function createJobMessage(job, queueName, extraBull = {}) {
+  const data = job.data || {};
+  return {
+    payload:
+      data && Object.prototype.hasOwnProperty.call(data, "payload")
+        ? data.payload
+        : data,
+    job: serializeJob(job),
+    bull: {
+      queue: queueName,
+      jobId: job.id,
+      ...extraBull,
+    },
+  };
+}
+
+class AcknowledgementEntry {
+  constructor(context, timeoutMs) {
+    this.events = new EventEmitter();
+    this.settled = false;
+    this.job = context.job;
+    this.queue = context.queue;
+    this.queueName = context.queueName;
+    this.runNodeId = context.runNodeId;
+    this.timeout = undefined;
+
+    if (timeoutMs > 0) {
+      this.timeout = setTimeout(() => {
+        this.fail(
+          new Error(`BullMQ job acknowledgement timed out after ${timeoutMs}ms`)
+        );
+      }, timeoutMs);
+    }
+  }
+
+  async wait() {
+    const [settlement] = await once(this.events, "settled");
+    if (settlement.type === "reject") {
+      throw settlement.error;
+    }
+    return settlement.value;
+  }
+
+  complete(value) {
+    this.settle({ type: "resolve", value });
+  }
+
+  fail(error) {
+    this.settle({ type: "reject", error });
+  }
+
+  settle(settlement) {
+    if (this.settled) {
+      return;
+    }
+    this.settled = true;
+    clearTimeout(this.timeout);
+    this.events.emit("settled", settlement);
+  }
+}
+
+class AcknowledgementRegistry {
+  constructor() {
+    this.entries = new Map();
+  }
+
+  create(context, timeoutMs) {
+    const ackId = `${context.runNodeId}:${context.job.id}:${Date.now()}:${Math.random()
+      .toString(36)
+      .slice(2)}`;
+
+    const entry = new AcknowledgementEntry(context, timeoutMs);
+    this.entries.set(ackId, entry);
+    return { ackId, entry };
+  }
+
+  get(ackId) {
+    const entry = this.entries.get(ackId);
+    if (!entry) {
+      throw new Error("Missing, stale, or already-settled BullMQ acknowledgement");
+    }
+    return entry;
+  }
+
+  rejectByRunNode(runNodeId, err) {
+    for (const [ackId, entry] of this.entries.entries()) {
+      if (entry.runNodeId === runNodeId) {
+        this.entries.delete(ackId);
+        entry.fail(err);
+      }
+    }
+  }
+}
+
+module.exports = function registerBullMQNodes(RED) {
+  const acknowledgements = new AcknowledgementRegistry();
 
   function BullQueueServerSetup(n) {
     RED.nodes.createNode(this, n);
+    const node = this;
 
-    // Configuration options passed by Node Red
-    this.name = n.name;
-    this.address = n.address;
-    this.port = n.port;
-    this.password = n.password;
+    node.users = {};
+    node.resources = new Set();
+    node.config = normalizeQueueConfig(n, node.credentials || {});
+    node.queue = null;
+    node.producerConnection = null;
 
-    // Config node state
-    this.connected = false;
-    this.connecting = false;
-    this.closing = false;
-
-    // Define functions called by MQTT in and out nodes
-    var node = this;
-    this.users = {};
-
-    this.register = function(bullNode) {
+    node.register = function register(bullNode) {
       node.users[bullNode.id] = bullNode;
-      if (Object.keys(node.users).length === 1) {
-        node.connect();
-      }
+      bullNode.status({
+        fill: "grey",
+        shape: "ring",
+        text: "configured",
+      });
     };
 
-    this.deregister = function(bullNode, done) {
+    node.deregister = function deregister(bullNode, done) {
       delete node.users[bullNode.id];
-      if (node.closing) {
-        return done();
-      }
-      if (Object.keys(node.users).length === 0) {
-        if (node.queue && node.connected) {
-          return node.queue.close(done);
-        } else {
-          node.queue.close();
-          return done();
-        }
-      }
       done();
     };
 
-    this.connect = function() {
-      if (!node.connected && !node.connecting) {
-        node.connecting = true;
-        try {
-          //node.queue = Queue(node.name, node.port, node.address);
-          node.queue = Queue(node.name, {
-            redis: {
-              port: node.port,
-              host: node.address,
-              password: node.password
-            }
-          }, );
-          node.log(sprintf("connected to %s:%d", node.address, node.port));
-          node.connecting = false;
-          node.connected = true;
-          for (var id in node.users) {
-            if (node.users.hasOwnProperty(id)) {
-              node.users[id].status({
-                fill: "green",
-                shape: "dot",
-                text: "node-red:common.status.connected"
-              });
-            }
-          }
-        } catch (err) {
-          console.log(err);
-        }
+    node.createConnection = function createConnection(role) {
+      const descriptor = buildRedisDescriptor(node.config, role);
+      const connection = createRedisConnection(descriptor, IORedis);
+      attachErrorListener(connection, node, `Redis ${role}`);
+      node.resources.add(connection);
+      return connection;
+    };
+
+    node.getQueue = function getQueue() {
+      if (!node.queue) {
+        node.producerConnection = node.createConnection("producer");
+        node.queue = new Queue(
+          node.config.queueName,
+          buildBullMQOptions(node.config, node.producerConnection)
+        );
+        attachErrorListener(node.queue, node, "BullMQ queue");
       }
       return node.queue;
     };
 
-    this.on("close", function(removed, done) {
-      this.closing = true;
-      if (this.connected) {
-        this.queue.once("close", function() {
-          done();
-        });
-        this.queue.close();
+    node.createWorker = function createWorker(processor, options) {
+      const connection = node.createConnection("worker");
+      const worker = new Worker(node.config.queueName, processor, {
+        ...buildBullMQOptions(node.config, connection),
+        ...options,
+      });
+      attachErrorListener(worker, node, "BullMQ worker");
+      node.resources.add(worker);
+      return worker;
+    };
+
+    node.createQueueEvents = function createQueueEvents() {
+      const connection = node.createConnection("events");
+      const queueEvents = new QueueEvents(
+        node.config.queueName,
+        buildBullMQOptions(node.config, connection)
+      );
+      attachErrorListener(queueEvents, node, "BullMQ events");
+      node.resources.add(queueEvents);
+      return queueEvents;
+    };
+
+    node.createFlowProducer = function createFlowProducer() {
+      const connection = node.createConnection("producer");
+      const flowProducer = new FlowProducer(
+        buildBullMQOptions(node.config, connection)
+      );
+      attachErrorListener(flowProducer, node, "BullMQ flow");
+      node.resources.add(flowProducer);
+      return flowProducer;
+    };
+
+    node.on("close", async function onClose(removed, done) {
+      try {
+        if (node.queue) {
+          await closeResource(node.queue);
+        }
+        const resources = Array.from(node.resources).reverse();
+        for (const resource of resources) {
+          await closeResource(resource);
+        }
+        node.status({});
         done();
-      } else if (this.connecting || node.queue.reconnecting) {
-        node.queue.close();
-        done();
-      } else {
-        done();
+      } catch (err) {
+        done(err);
       }
     });
   }
 
-  RED.nodes.registerType("bull-queue-server", BullQueueServerSetup);
+  RED.nodes.registerType("bull-queue-server", BullQueueServerSetup, {
+    credentials: {
+      password: { type: "password" },
+      sentinelPassword: { type: "password" },
+      tlsCa: { type: "password" },
+      tlsCert: { type: "password" },
+      tlsKey: { type: "password" },
+    },
+  });
 
   function BullQueueCmdNode(n) {
     RED.nodes.createNode(this, n);
-    this.queue = n.queue;
-    this.bullConn = RED.nodes.getNode(this.queue);
+    const node = this;
+    node.queue = n.queue;
+    node.bullConn = RED.nodes.getNode(node.queue);
 
-    var node = this;
-
-    if (this.bullConn) {
-      this.bullConn.register(this);
-      /*
-      node.Queue.connect().then(
-        function(queue) {
-          node.status({
-            fill: "green",
-            shape: "dot",
-            text: "connected"
-          });
-        },
-        function(error) {
-          node.status({
-            fill: "red",
-            shape: "ring",
-            text: "disconnected"
-          });
-        }
-      );
-*/
-    } else {
-      node.error("common.status.error");
-    }
-    try {
-      this.on("input", function(msg) {
-        var bullqueue = node.bullConn.connect();
-
-        switch (msg.cmd) {
-          case "add":
-            (async function(msg) {
-              // get all repeatable jobs
-              const jobs = await bullqueue.getRepeatableJobs();
-              // delete any repeatable jobs with the same key
-              // this is to make sure that only one job is associated with the key
-              if (msg.jobopts.repeat != null) {
-                for (let i = 0; i < jobs.length; i++) {
-                  if (jobs[i].key.includes(msg.jobopts.jobId)) {
-                    await bullqueue.removeRepeatableByKey(jobs[i].key);
-                  }
-                }
-              }
-              // add the new job
-              msg.payload = await bullqueue.add(
-                { payload: msg.payload },
-                msg.jobopts
-              );
-              // send the message to next node
-              node.send(msg);
-            })(msg);
-            break;
-          case "count":
-            (async function(msg) {
-              // count how many repeateable jobs in the queue
-              const jobs = await bullqueue.getRepeatableJobs();
-              msg.payload = jobs.length;
-              // send the message to next node
-              node.send(msg);
-            })(msg);
-            break;
-          case "getRepeatableJobs":
-            (async function(msg) {
-              // list all repeatable jobs
-              msg.payload = await bullqueue.getRepeatableJobs();
-              // send the message to next node
-              node.send(msg);
-            })(msg);
-            break;
-          case "getRepeatableJobByKey":
-            (async function(msg) {
-              // get all repeatable jobs
-              const jobs = await bullqueue.getRepeatableJobs();
-              if (msg.jobid !== undefined || msg.jobid !== null) {
-                msg.payload = "no job id found";
-                // go through the list of all jobs
-                for (let i = 0; i < jobs.length; i++) {
-                  // find the job which includes the key specified
-                  if (jobs[i].key.includes(msg.jobid)) {
-                    // and assign it to msg.payload
-                    msg.payload = jobs[i];
-                    console.log(msg.payload);
-                    // because there is only one job associated with the key, so we can stop here
-                    break;
-                  }
-                }
-              } else {
-                msg.payload = "no job id specified";
-              }
-              node.send(msg);
-            })(msg);
-            break;
-          case "removeRepeatableByKey":
-            (async function(msg) {
-              const jobs = await bullqueue.getRepeatableJobs();
-              if (msg.jobid !== undefined || msg.jobid !== null) {
-                // go through the list of all jobs
-                for (let i = 0; i < jobs.length; i++) {
-                  // find the job which includes the key specified
-                  if (jobs[i].key.includes(msg.jobid)) {
-                    // and remove this job
-                    msg.payload = await bullqueue.removeRepeatableByKey(
-                      jobs[i].key
-                    );
-                    // because there is only one job associated with the key, so we can stop here
-                    break;
-                  }
-                }
-              } else {
-                msg.payload = "no job id specified";
-              }
-              node.send(msg);
-            })(msg);
-            break;
-          case "stopAndRemoveAllJobs":
-            (async function(msg) {
-              // empties a queue deleting all the input lists and associated jobs.
-              msg.payload = await bullqueue.empty();
-              // remove all repeatablejobs
-              const jobs = await bullqueue.getRepeatableJobs();
-              if (msg.payload === undefined || msg.payload === null) {
-                msg.payload = "";
-              }
-              for (let i = 0; i < jobs.length; i++) {
-                msg.payload = await bullqueue.removeRepeatableByKey(
-                  jobs[i].key
-                );
-              }
-
-              // clean repeat queue, please refer to
-              // https://github.com/OptimalBits/bull/issues/709#issuecomment-344561983
-              bullqueue.clean(0, "delayed");
-              bullqueue.clean(0, "wait");
-              bullqueue.clean(0, "active");
-              bullqueue.clean(0, "completed");
-              bullqueue.clean(0, "failed");
-
-              node.send(msg);
-            })(msg);
-            break;
-          case "clean":
-              (async function(msg) {
-                // clean completed jobs in redis
-                // reference to https://github.com/OptimalBits/bull/issues/709#issuecomment-344561983
-                msg.payload = await bullqueue.clean(0, 'completed');
-                if (msg.payload === undefined || msg.payload === null) {
-                  msg.payload = "Failed to clean completed jobs";
-                } else {
-                  msg.payload = `Cleaned ${msg.payload.length} completed jobs`;
-                }
-                node.send(msg);
-              })(msg);
-              break;
-          default:
-            node.log("TBA " + msg.cmd);
-            break;
-        }
-
-        /*
-        node.Queue.connect().then(
-          function(queue) {
-            switch (parseInt(node.cmd)) {
-              case 0:
-                node.log(
-                  "queue.add({payload:" +
-                    msg.payload +
-                    "}, " +
-                    JSON.stringify(msg.jobopts) +
-                    ")"
-                );
-                async function add(msg) {
-                  return await queue.add({ payload: msg.payload }, msg.jobopts);
-                }
-                msg.result = add(msg);
-                node.send(msg);
-                break;
-              case 1:
-                node.log("queue.pause()", node.cmd);
-                queue.pause();
-                break;
-              case 2:
-                node.log("queue.resume()", node.cmd);
-                queue.resume();
-                break;
-              default:
-                node.log("queue.default()", node.cmd);
-                break;
-            }
-          },
-          function(error) {
-            node.status({
-              fill: "red",
-              shape: "ring",
-              text: "disconnected"
-            });
-          }
-        );
-*/
-      });
-    } catch (err) {
-      // eg SyntaxError - which v8 doesn't include line number information
-      // so we can't do better than this
-      this.error(err);
+    if (!node.bullConn) {
+      node.status({ fill: "red", shape: "ring", text: "missing queue" });
+      node.error("Missing bull-queue-server config node");
+      return;
     }
 
-    node.status({
-      fill: "green",
-      shape: "dot",
-      text: "node-red:common.status.connected"
+    node.bullConn.register(node);
+    node.status({ fill: "green", shape: "dot", text: "configured" });
+
+    node.on("input", async function onInput(msg, send, done) {
+      try {
+        const result = await dispatchCommand(node.bullConn.getQueue(), msg);
+        msg.payload = result;
+        nodeSend(node, send, msg);
+        nodeDone(node, done);
+      } catch (err) {
+        nodeDone(node, done, err, msg);
+      }
     });
 
-    this.on("close", function(removed, done) {
-      if (node.bullConn) {
-        node.brokerConn.deregister(node, done);
-      }
+    node.on("close", function onClose(removed, done) {
+      node.bullConn.deregister(node, done);
     });
   }
 
   function BullQueueRunNode(n) {
     RED.nodes.createNode(this, n);
-    var node = this;
-    this.queue = n.queue;
-    this.bullQueue = RED.nodes.getNode(this.queue);
-    if (this.bullQueue) {
-      this.status({
-        fill: "red",
-        shape: "ring",
-        text: "node-red:common.status.disconnected"
-      });
-      this.bullQueue.register(node);
-      var bullqueue = node.bullQueue.connect();
-      if (bullqueue) {
-        node.status({
-          fill: "green",
-          shape: "dot",
-          text: "node-red:common.status.connected"
-        });
-      }
-      bullqueue.process(function(job, completed) {
-        node.log(JSON.stringify(job));
-        node.send(job.data);
-        completed();
-      });
-      /*
-      node.Queue.connect().then(
-        function(queue) {
-          node.status({
-            fill: "green",
-            shape: "dot",
-            text: "connected"
-          });
-          queue.process(function(job, completed) {
-            node.log(JSON.stringify(job));
-            node.send(job.data);
-            completed();
-          });
-        },
-        function(error) {
-          node.status({
-            fill: "red",
-            shape: "ring",
-            text: "disconnected"
-          });
-        }
-      );
-*/
-    } else {
-      node.error("common.status.error");
+    const node = this;
+    node.queue = n.queue;
+    node.bullQueue = RED.nodes.getNode(node.queue);
+    node.completionMode = n.completionMode || "immediate";
+
+    if (!node.bullQueue) {
+      node.status({ fill: "red", shape: "ring", text: "missing queue" });
+      node.error("Missing bull-queue-server config node");
+      return;
     }
 
-    this.on("close", function(removed, done) {
-      if (node.brokerConn) {
-        node.deregister(node, done);
+    node.bullQueue.register(node);
+
+    const workerOptions = {
+      concurrency: parsePositiveInteger(n.concurrency, 1),
+    };
+    if (n.limiterMax && n.limiterDuration) {
+      workerOptions.limiter = {
+        max: parsePositiveInteger(n.limiterMax),
+        duration: parsePositiveInteger(n.limiterDuration),
+      };
+    }
+
+    const processor = async (job) => {
+      if (node.completionMode === "manual") {
+        const timeoutMs = Number(n.ackTimeout || 300000);
+        const acknowledgement = acknowledgements.create(
+          {
+            job,
+            queue: node.bullQueue.getQueue(),
+            queueName: node.bullQueue.config.queueName,
+            runNodeId: node.id,
+          },
+          timeoutMs
+        );
+        node.send(
+          createJobMessage(job, node.bullQueue.config.queueName, {
+            ackId: acknowledgement.ackId,
+            runNodeId: node.id,
+          })
+        );
+        return await acknowledgement.entry.wait();
       }
-      done();
+
+      const msg = createJobMessage(job, node.bullQueue.config.queueName);
+      node.send(msg);
+      return msg.payload;
+    };
+
+    node.worker = node.bullQueue.createWorker(processor, workerOptions);
+    node.worker.on("ready", () =>
+      node.status({ fill: "green", shape: "dot", text: "connected" })
+    );
+    node.worker.on("closed", () =>
+      node.status({ fill: "red", shape: "ring", text: "closed" })
+    );
+    node.status({ fill: "yellow", shape: "ring", text: "connecting" });
+
+    node.on("close", async function onClose(removed, done) {
+      acknowledgements.rejectByRunNode(
+        node.id,
+        new Error("BullMQ run node closed before acknowledgement")
+      );
+      try {
+        await closeResource(node.worker);
+        node.bullQueue.deregister(node, () => {});
+        done();
+      } catch (err) {
+        done(err);
+      }
+    });
+  }
+
+  function BullJobNode(n) {
+    RED.nodes.createNode(this, n);
+    const node = this;
+    node.action = n.action || "complete";
+
+    node.on("input", async function onInput(msg, send, done) {
+      try {
+        const ackId = msg.bull && msg.bull.ackId;
+        const context = acknowledgements.get(ackId);
+        const action = msg.cmd || node.action;
+
+        switch (action) {
+          case "progress":
+            await context.job.updateProgress(
+              msg.progress !== undefined ? msg.progress : msg.payload
+            );
+            msg.payload = serializeJob(context.job);
+            nodeSend(node, send, msg);
+            nodeDone(node, done);
+            return;
+          case "removeDeduplicationKey":
+            msg.payload = await context.job.removeDeduplicationKey();
+            nodeSend(node, send, msg);
+            nodeDone(node, done);
+            return;
+          case "getChildrenValues":
+            msg.payload = await context.job.getChildrenValues();
+            nodeSend(node, send, msg);
+            nodeDone(node, done);
+            return;
+          case "getFailedChildrenValues":
+            msg.payload = await context.job.getFailedChildrenValues();
+            nodeSend(node, send, msg);
+            nodeDone(node, done);
+            return;
+          case "removeUnprocessedChildren":
+            msg.payload = await context.job.removeUnprocessedChildren();
+            nodeSend(node, send, msg);
+            nodeDone(node, done);
+            return;
+          case "complete": {
+            const result = msg.result !== undefined ? msg.result : msg.payload;
+            context.complete(result);
+            msg.payload = result;
+            nodeSend(node, send, msg);
+            nodeDone(node, done);
+            return;
+          }
+          case "fail": {
+            const error =
+              msg.error instanceof Error
+                ? msg.error
+                : new Error(String(msg.error || msg.payload));
+            context.fail(error);
+            nodeDone(node, done);
+            return;
+          }
+          case "failUnrecoverable": {
+            const errorText = String(
+              msg.error || msg.payload || "Unrecoverable BullMQ job failure"
+            );
+            context.fail(new UnrecoverableError(errorText));
+            nodeDone(node, done);
+            return;
+          }
+          case "rateLimit":
+            await context.queue.rateLimit(msg.duration);
+            context.fail(Worker.RateLimitError());
+            nodeDone(node, done);
+            return;
+          default:
+            throw new Error(`Unsupported bull job action: ${action}`);
+        }
+      } catch (err) {
+        nodeDone(node, done, err, msg);
+      }
+    });
+  }
+
+  function BullEventsNode(n) {
+    RED.nodes.createNode(this, n);
+    const node = this;
+    node.queue = n.queue;
+    node.bullConn = RED.nodes.getNode(node.queue);
+
+    if (!node.bullConn) {
+      node.status({ fill: "red", shape: "ring", text: "missing queue" });
+      node.error("Missing bull-queue-server config node");
+      return;
+    }
+
+    node.bullConn.register(node);
+    node.queueEvents = node.bullConn.createQueueEvents();
+    const events = parseEventFilter(n.events);
+    for (const event of events) {
+      node.queueEvents.on(event, (payload, eventId) => {
+        node.send({
+          topic: event,
+          payload,
+          bull: {
+            queue: node.bullConn.config.queueName,
+            event,
+            eventId,
+          },
+        });
+      });
+    }
+    async function updateReadyStatus() {
+      try {
+        await node.queueEvents.waitUntilReady();
+        node.status({ fill: "green", shape: "dot", text: "connected" });
+      } catch (err) {
+        node.error(err);
+      }
+    }
+    updateReadyStatus();
+
+    node.on("close", async function onClose(removed, done) {
+      try {
+        await closeResource(node.queueEvents);
+        node.bullConn.deregister(node, () => {});
+        done();
+      } catch (err) {
+        done(err);
+      }
+    });
+  }
+
+  function BullFlowNode(n) {
+    RED.nodes.createNode(this, n);
+    const node = this;
+    node.queue = n.queue;
+    node.bullConn = RED.nodes.getNode(node.queue);
+
+    if (!node.bullConn) {
+      node.status({ fill: "red", shape: "ring", text: "missing queue" });
+      node.error("Missing bull-queue-server config node");
+      return;
+    }
+
+    node.bullConn.register(node);
+    node.flowProducer = node.bullConn.createFlowProducer();
+
+    node.on("input", async function onInput(msg, send, done) {
+      try {
+        if (!msg.payload || typeof msg.payload !== "object") {
+          throw new Error("bull flow requires msg.payload to contain a flow tree");
+        }
+        msg.payload = serializeFlowJob(
+          await node.flowProducer.add(msg.payload, msg.flowopts)
+        );
+        nodeSend(node, send, msg);
+        nodeDone(node, done);
+      } catch (err) {
+        nodeDone(node, done, err, msg);
+      }
+    });
+
+    node.on("close", async function onClose(removed, done) {
+      try {
+        await closeResource(node.flowProducer);
+        node.bullConn.deregister(node, () => {});
+        done();
+      } catch (err) {
+        done(err);
+      }
     });
   }
 
   RED.nodes.registerType("bull cmd", BullQueueCmdNode);
   RED.nodes.registerType("bull run", BullQueueRunNode);
+  RED.nodes.registerType("bull job", BullJobNode);
+  RED.nodes.registerType("bull events", BullEventsNode);
+  RED.nodes.registerType("bull flow", BullFlowNode);
 };

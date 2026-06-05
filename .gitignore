@@ -13,6 +13,7 @@ lib-cov
 
 # Coverage directory used by tools like istanbul
 coverage
+test-results
 
 # nyc test coverage
 .nyc_output
@@ -29,6 +30,10 @@ build/Release
 # Dependency directories
 node_modules
 jspm_packages
+
+# Local agent and generated index artifacts
+GOAL.md
+.codegraph/
 
 # Optional npm cache directory
 .npm

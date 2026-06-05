@@ -1,0 +1,85 @@
+# Testing
+
+## Fast Local Tests
+
+```sh
+npm test
+```
+
+This runs built-in `node:test` suites for package metadata, connection normalization, scheduler compatibility, command dispatch, editor surface, registration, Docker fixture contracts, docs, and examples.
+
+## Node-RED Runtime Tests
+
+Use `node-red-node-test-helper` for flow-level tests. Runtime coverage should load actual Node-RED flows for:
+
+- `bull cmd` success and failure paths;
+- `bull run` immediate and manual modes;
+- `bull job` acknowledgement actions;
+- `bull events`;
+- `bull flow`;
+- legacy flow compatibility.
+
+The current standalone Redis integration suite is opt-in:
+
+```sh
+npm run test:integration
+```
+
+It starts a temporary local `redis-server`, loads real Node-RED flows, and verifies:
+
+- `bull cmd` add/run behavior;
+- manual `bull run` acknowledgement through `bull job`;
+- legacy repeat scheduler creation, lookup, and removal;
+- delayed-job commands;
+- priority listing and counts;
+- global rate-limit commands;
+- deduplication commands and `bull events` delivery;
+- `bull flow` parent/child FlowProducer output.
+
+## Playwright
+
+Editor changes require Playwright coverage:
+
+```sh
+npm run test:playwright
+```
+
+Cover deployment field visibility, credential persistence, TLS fields, and edit dialogs for all node types.
+
+## Docker Matrix
+
+Use Docker for the topology matrix:
+
+```sh
+npm run test:deployments
+```
+
+The runner starts each fixture, waits for Redis readiness, runs `test/integration-deployment.test.js`, and removes volumes between deployments.
+
+Current executable fixtures:
+
+- `single-noauth`: standalone Redis without auth or TLS
+- `single-auth`: standalone Redis with ACL auth
+- `cluster-auth`: two-node Redis Cluster with ACL auth and BullMQ `{bull}` prefix coverage
+- `sentinel-auth`: Redis master, two replicas, and three Sentinels with data-node ACL auth
+
+The shared deployment test proves Node-RED load, connection, add/run delivery, required `basecasts` scheduler creation/removal, and absolute scheduler minute/second metadata. TLS-specific Docker fixtures should be added before release if certificate-backed Redis containers are available; TLS option construction is covered by unit tests.
+
+## AWS MemoryDB
+
+MemoryDB tests are opt-in. Use environment variables only:
+
+- `MEMORYDB_ENDPOINT`
+- `MEMORYDB_PORT`
+- `MEMORYDB_USERNAME`
+- `MEMORYDB_PASSWORD`
+- optional `MEMORYDB_TLS`
+- explicit enable flag such as `MEMORYDB_ENABLED=1`
+
+Run MemoryDB with the same deployment harness:
+
+```sh
+MEMORYDB_ENABLED=1 npm run test:deployments
+```
+
+Never write these values to repository files, examples, fixtures, snapshots, or logs.

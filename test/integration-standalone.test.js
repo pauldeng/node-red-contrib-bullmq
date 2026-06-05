@@ -1,0 +1,548 @@
+const assert = require("node:assert/strict");
+const { spawn } = require("node:child_process");
+const { once } = require("node:events");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { setTimeout: sleep } = require("node:timers/promises");
+const test = require("node:test");
+
+const Redis = require("ioredis");
+const helper = require("node-red-node-test-helper");
+const bullNodes = require("../bull-queue");
+
+const enabled = process.env.BULLMQ_INTEGRATION === "1";
+
+function waitForInput(node, timeoutMs = 10000) {
+  return waitForInputMessage(node, timeoutMs);
+}
+
+async function waitForInputMessage(node, timeoutMs) {
+  const [msg] = await once(node, "input", {
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  return msg;
+}
+
+async function waitForRedis(port) {
+  const deadline = Date.now() + 10000;
+  let lastError;
+
+  while (Date.now() < deadline) {
+    const client = new Redis({
+      host: "127.0.0.1",
+      port,
+      connectTimeout: 200,
+      maxRetriesPerRequest: 1,
+      retryStrategy: null,
+    });
+    client.on("error", () => {});
+    try {
+      await client.ping();
+      client.disconnect();
+      return;
+    } catch (err) {
+      lastError = err;
+      client.disconnect();
+      await sleep(50);
+    }
+  }
+
+  throw new Error(`Timed out waiting for redis-server: ${lastError.message}`);
+}
+
+async function startRedis() {
+  const port = 16400 + Math.floor(Math.random() * 1000);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bullmq-redis-"));
+  const child = spawn(
+    "redis-server",
+    [
+      "--bind",
+      "127.0.0.1",
+      "--port",
+      String(port),
+      "--save",
+      "",
+      "--appendonly",
+      "no",
+      "--dir",
+      dir,
+      "--maxmemory-policy",
+      "noeviction",
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] }
+  );
+
+  await waitForRedis(port);
+
+  return {
+    port,
+    stop() {
+      child.kill("SIGTERM");
+      fs.rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+async function startHelper() {
+  const userDir = fs.mkdtempSync(path.join(os.tmpdir(), "nr-bullmq-test-"));
+  helper.init(require.resolve("node-red"), {
+    userDir,
+    flowFile: "flows.json",
+    credentialSecret: false,
+    logging: { console: { level: "fatal" } },
+  });
+  await helper.startServer();
+  return userDir;
+}
+
+async function stopHelper(userDir) {
+  await helper.unload();
+  await helper.stopServer();
+  fs.rmSync(userDir, { recursive: true, force: true });
+}
+
+function queueConfig(id, name, redis) {
+  return {
+    id,
+    type: "bull-queue-server",
+    name,
+    deployment: "single",
+    address: "127.0.0.1",
+    port: String(redis.port),
+  };
+}
+
+async function receiveCommand(node, output, msg) {
+  const result = waitForInput(output);
+  node.receive(msg);
+  return await result;
+}
+
+test(
+  "standalone Redis flow adds, runs, and manages legacy repeat schedulers",
+  { skip: !enabled },
+  async () => {
+    const redis = await startRedis();
+    const userDir = await startHelper();
+
+    try {
+      const flow = [
+        { id: "tab", type: "tab", label: "test" },
+        {
+          id: "queue",
+          type: "bull-queue-server",
+          name: "basecasts",
+          deployment: "single",
+          address: "127.0.0.1",
+          port: String(redis.port),
+        },
+        {
+          id: "cmd",
+          type: "bull cmd",
+          z: "tab",
+          name: "cmd",
+          queue: "queue",
+          x: 360,
+          y: 120,
+          wires: [["cmd-out"]],
+        },
+        { id: "cmd-out", type: "helper", z: "tab", x: 560, y: 120, wires: [] },
+        {
+          id: "run",
+          type: "bull run",
+          z: "tab",
+          name: "run",
+          queue: "queue",
+          completionMode: "immediate",
+          ackTimeout: 300000,
+          concurrency: 1,
+          x: 360,
+          y: 220,
+          wires: [["run-out"]],
+        },
+        { id: "run-out", type: "helper", z: "tab", x: 560, y: 220, wires: [] },
+      ];
+
+      await helper.load(bullNodes, flow);
+      const cmd = helper.getNode("cmd");
+      const cmdOut = helper.getNode("cmd-out");
+      const runOut = helper.getNode("run-out");
+
+      const addOutput = waitForInput(cmdOut);
+      const runOutput = waitForInput(runOut);
+      cmd.receive({
+        cmd: "add",
+        payload: "hello standalone redis",
+        jobopts: { removeOnComplete: true },
+      });
+
+      assert.equal((await addOutput).payload.name, "default");
+      assert.equal((await runOutput).payload, "hello standalone redis");
+
+      const scheduleOutput = waitForInput(cmdOut);
+      cmd.receive({
+        cmd: "add",
+        payload: "gateway-FCC23DFFFE0AA2A8",
+        jobopts: {
+          jobId: "gateway-FCC23DFFFE0AA2A8",
+          repeat: { cron: "30 9,19,29,39,49,59 * * * *" },
+          removeOnComplete: true,
+        },
+      });
+      assert.equal((await scheduleOutput).payload.name, "default");
+
+      const countOutput = waitForInput(cmdOut);
+      cmd.receive({ cmd: "count" });
+      assert.equal((await countOutput).payload, 1);
+
+      const getOutput = waitForInput(cmdOut);
+      cmd.receive({
+        cmd: "getRepeatableJobByKey",
+        jobid: "gateway-FCC23DFFFE0AA2A8",
+      });
+      assert.equal((await getOutput).payload.key, "gateway-FCC23DFFFE0AA2A8");
+
+      const removeOutput = waitForInput(cmdOut);
+      cmd.receive({
+        cmd: "removeRepeatableByKey",
+        jobid: "gateway-FCC23DFFFE0AA2A8",
+      });
+      assert.equal((await removeOutput).payload, true);
+    } finally {
+      await stopHelper(userDir);
+      redis.stop();
+    }
+  }
+);
+
+test(
+  "manual acknowledgement completes a BullMQ job through bull job",
+  { skip: !enabled },
+  async () => {
+    const redis = await startRedis();
+    const userDir = await startHelper();
+
+    try {
+      const flow = [
+        { id: "tab", type: "tab", label: "manual ack" },
+        {
+          id: "queue",
+          type: "bull-queue-server",
+          name: "manualcasts",
+          deployment: "single",
+          address: "127.0.0.1",
+          port: String(redis.port),
+        },
+        {
+          id: "cmd",
+          type: "bull cmd",
+          z: "tab",
+          name: "cmd",
+          queue: "queue",
+          x: 160,
+          y: 120,
+          wires: [["cmd-out"]],
+        },
+        { id: "cmd-out", type: "helper", z: "tab", x: 360, y: 120, wires: [] },
+        {
+          id: "run",
+          type: "bull run",
+          z: "tab",
+          name: "manual worker",
+          queue: "queue",
+          completionMode: "manual",
+          ackTimeout: 300000,
+          concurrency: 1,
+          x: 160,
+          y: 220,
+          wires: [["complete"]],
+        },
+        {
+          id: "complete",
+          type: "bull job",
+          z: "tab",
+          name: "complete",
+          action: "complete",
+          x: 360,
+          y: 220,
+          wires: [["job-out"]],
+        },
+        { id: "job-out", type: "helper", z: "tab", x: 560, y: 220, wires: [] },
+      ];
+
+      await helper.load(bullNodes, flow);
+      const cmd = helper.getNode("cmd");
+      const cmdOut = helper.getNode("cmd-out");
+      const jobOut = helper.getNode("job-out");
+
+      const addOutput = waitForInput(cmdOut);
+      const completeOutput = waitForInput(jobOut);
+      cmd.receive({
+        cmd: "add",
+        payload: "manual ack payload",
+        jobopts: { removeOnComplete: true },
+      });
+
+      assert.equal((await addOutput).payload.name, "default");
+      assert.equal((await completeOutput).payload, "manual ack payload");
+    } finally {
+      await stopHelper(userDir);
+      redis.stop();
+    }
+  }
+);
+
+test(
+  "bull cmd manages delayed jobs, priorities, and global rate limits",
+  { skip: !enabled },
+  async () => {
+    const redis = await startRedis();
+    const userDir = await startHelper();
+
+    try {
+      const flow = [
+        { id: "tab", type: "tab", label: "feature commands" },
+        queueConfig("queue", "featurecasts", redis),
+        {
+          id: "cmd",
+          type: "bull cmd",
+          z: "tab",
+          name: "cmd",
+          queue: "queue",
+          x: 180,
+          y: 120,
+          wires: [["cmd-out"]],
+        },
+        { id: "cmd-out", type: "helper", z: "tab", x: 380, y: 120, wires: [] },
+      ];
+
+      await helper.load(bullNodes, flow);
+      const cmd = helper.getNode("cmd");
+      const cmdOut = helper.getNode("cmd-out");
+
+      const delayed = await receiveCommand(cmd, cmdOut, {
+        cmd: "add",
+        payload: "delayed payload",
+        jobopts: { jobId: "delayed-1", delay: 60000 },
+      });
+      assert.equal(delayed.payload.id, "delayed-1");
+
+      const delayedJobs = await receiveCommand(cmd, cmdOut, {
+        cmd: "getDelayed",
+      });
+      assert.deepEqual(
+        delayedJobs.payload.map((job) => job.id),
+        ["delayed-1"]
+      );
+
+      const promoted = await receiveCommand(cmd, cmdOut, {
+        cmd: "promoteJob",
+        jobId: "delayed-1",
+      });
+      assert.equal(promoted.payload.id, "delayed-1");
+
+      await receiveCommand(cmd, cmdOut, {
+        cmd: "add",
+        payload: "low priority",
+        jobopts: { jobId: "priority-low", priority: 10 },
+      });
+      await receiveCommand(cmd, cmdOut, {
+        cmd: "add",
+        payload: "high priority",
+        jobopts: { jobId: "priority-high", priority: 1 },
+      });
+
+      const prioritized = await receiveCommand(cmd, cmdOut, {
+        cmd: "getPrioritized",
+      });
+      assert.deepEqual(
+        prioritized.payload.map((job) => job.id).sort(),
+        ["priority-high", "priority-low"]
+      );
+
+      const priorityCounts = await receiveCommand(cmd, cmdOut, {
+        cmd: "getCountsPerPriority",
+        priorities: [1, 10],
+      });
+      assert.deepEqual(priorityCounts.payload, { 1: 1, 10: 1 });
+
+      assert.equal(
+        (
+          await receiveCommand(cmd, cmdOut, {
+            cmd: "setGlobalRateLimit",
+            max: 2,
+            duration: 1000,
+          })
+        ).payload,
+        true
+      );
+      assert.deepEqual(
+        (
+          await receiveCommand(cmd, cmdOut, {
+            cmd: "getGlobalRateLimit",
+          })
+        ).payload,
+        { max: 2, duration: 1000 }
+      );
+      assert.equal(
+        (
+          await receiveCommand(cmd, cmdOut, {
+            cmd: "removeGlobalRateLimit",
+          })
+        ).payload,
+        2
+      );
+    } finally {
+      await stopHelper(userDir);
+      redis.stop();
+    }
+  }
+);
+
+test(
+  "bull events reports deduplicated jobs from bull cmd",
+  { skip: !enabled },
+  async () => {
+    const redis = await startRedis();
+    const userDir = await startHelper();
+
+    try {
+      const flow = [
+        { id: "tab", type: "tab", label: "events" },
+        queueConfig("queue", "eventcasts", redis),
+        {
+          id: "cmd",
+          type: "bull cmd",
+          z: "tab",
+          name: "cmd",
+          queue: "queue",
+          x: 180,
+          y: 120,
+          wires: [["cmd-out"]],
+        },
+        { id: "cmd-out", type: "helper", z: "tab", x: 380, y: 120, wires: [] },
+        {
+          id: "events",
+          type: "bull events",
+          z: "tab",
+          name: "events",
+          queue: "queue",
+          events: "deduplicated",
+          x: 180,
+          y: 220,
+          wires: [["events-out"]],
+        },
+        {
+          id: "events-out",
+          type: "helper",
+          z: "tab",
+          x: 380,
+          y: 220,
+          wires: [],
+        },
+      ];
+
+      await helper.load(bullNodes, flow);
+      const cmd = helper.getNode("cmd");
+      const cmdOut = helper.getNode("cmd-out");
+      const eventsOut = helper.getNode("events-out");
+      await sleep(250);
+
+      await receiveCommand(cmd, cmdOut, {
+        cmd: "add",
+        payload: "first dedupe",
+        jobopts: {
+          jobId: "dedupe-source",
+          deduplication: { id: "dedupe-key" },
+        },
+      });
+
+      const deduplicatedEvent = waitForInput(eventsOut);
+      await receiveCommand(cmd, cmdOut, {
+        cmd: "add",
+        payload: "second dedupe",
+        jobopts: {
+          jobId: "dedupe-duplicate",
+          deduplication: { id: "dedupe-key" },
+        },
+      });
+
+      const retainedJobId = await receiveCommand(cmd, cmdOut, {
+        cmd: "getDeduplicationJobId",
+        deduplicationId: "dedupe-key",
+      });
+      assert.equal(retainedJobId.payload, "dedupe-source");
+
+      const eventMsg = await deduplicatedEvent;
+      assert.equal(eventMsg.topic, "deduplicated");
+      assert.equal(eventMsg.bull.queue, "eventcasts");
+      assert.equal(eventMsg.payload.deduplicationId, "dedupe-key");
+
+      const removed = await receiveCommand(cmd, cmdOut, {
+        cmd: "removeDeduplicationKey",
+        deduplicationId: "dedupe-key",
+      });
+      assert.equal(removed.payload, 1);
+    } finally {
+      await stopHelper(userDir);
+      redis.stop();
+    }
+  }
+);
+
+test(
+  "bull flow adds parent and child jobs through FlowProducer",
+  { skip: !enabled },
+  async () => {
+    const redis = await startRedis();
+    const userDir = await startHelper();
+
+    try {
+      const flow = [
+        { id: "tab", type: "tab", label: "flow producer" },
+        queueConfig("queue", "flowcasts", redis),
+        {
+          id: "flow",
+          type: "bull flow",
+          z: "tab",
+          name: "flow",
+          queue: "queue",
+          x: 180,
+          y: 120,
+          wires: [["flow-out"]],
+        },
+        { id: "flow-out", type: "helper", z: "tab", x: 380, y: 120, wires: [] },
+      ];
+
+      await helper.load(bullNodes, flow);
+      const flowNode = helper.getNode("flow");
+      const flowOut = helper.getNode("flow-out");
+
+      const result = waitForInput(flowOut);
+      flowNode.receive({
+        payload: {
+          name: "parent",
+          queueName: "flowcasts",
+          data: { payload: "parent payload" },
+          children: [
+            {
+              name: "child",
+              queueName: "flowcasts",
+              data: { payload: "child payload" },
+            },
+          ],
+        },
+      });
+
+      const msg = await result;
+      assert.equal(msg.payload.job.name, "parent");
+      assert.equal(msg.payload.job.queueName, "flowcasts");
+      assert.equal(msg.payload.children[0].job.name, "child");
+      assert.equal(msg.payload.children[0].job.queueName, "flowcasts");
+    } finally {
+      await stopHelper(userDir);
+      redis.stop();
+    }
+  }
+);

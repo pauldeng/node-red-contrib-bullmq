@@ -1,0 +1,10 @@
+services:
+  redis:
+    image: ${REDIS_STANDALONE_IMAGE:-redis:7.2-alpine}
+    command:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+    ports:
+      - "127.0.0.1:${BULLMQ_SINGLE_AUTH_PORT:-16380}:6379"
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro

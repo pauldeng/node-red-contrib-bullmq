@@ -1,143 +1,221 @@
-<!--
-Copyright 2013, 2015 IBM Corp.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
--->
-
 <script type="text/x-red" data-template-name="bull-queue-server">
   <div class="form-row">
-  	<ul style="background: #fff; min-width: 600px; margin-bottom: 20px;" id="node-config-bull-queue-server-tabs"></ul>
+    <label for="node-config-input-name"><i class="fa fa-tasks"></i> Queue</label>
+    <input type="text" id="node-config-input-name" placeholder="basecasts">
   </div>
-  <div id="node-config-bull-queue-server-tabs-content" style="min-height: 170px;">
-  	<div id="bull-queue-server-tab-connection" style="display:none">
-  		<div class="form-row node-input-name">
-  			<label for="node-config-input-name"><i class="fa fa-globe"></i> <span>Queue Name</span></label>
-  				<input class="input-append-left" type="text" id="node-config-input-name" placeholder="Enter a queue name" style="width: 40%;" >
-  		</div>
-  		<div class="form-row node-input-address">
-  			<label for="node-config-input-address"><i class="fa fa-link"></i> <span>Redis Server</span></label>
-  				<input class="input-append-left" type="text" id="node-config-input-address" placeholder="localhost" style="width: 40%;" >
-  		</div>
-  		<div class="form-row node-input-port">
-  			<label for="node-config-input-port"><i class="fa fa-edit"></i> <span>Redis Port</span></label>
-  			<input type="number" id="node-config-input-port" placeholder="6379" style="width: 40%;">
-  		</div>
-      <div class="form-row node-input-password">
-				<label for="node-config-input-password"><i class="fa fa-lock"></i> <span>Redis Password</span></label>
-				<input type="text" id="node-config-input-password" placeholder="" style="width: 40%;">
-			</div>
-  	</div>
+  <div class="form-row">
+    <label for="node-config-input-deployment"><i class="fa fa-server"></i> Deployment</label>
+    <select id="node-config-input-deployment" style="width: 70%;">
+      <option value="single">Standalone Redis</option>
+      <option value="cluster">Redis Cluster / AWS MemoryDB</option>
+      <option value="sentinel">Redis Sentinel</option>
+    </select>
+  </div>
+  <div class="form-row bull-single-row">
+    <label for="node-config-input-address"><i class="fa fa-link"></i> Host</label>
+    <input type="text" id="node-config-input-address" placeholder="localhost">
+  </div>
+  <div class="form-row bull-single-row">
+    <label for="node-config-input-port"><i class="fa fa-plug"></i> Port</label>
+    <input type="number" id="node-config-input-port" placeholder="6379">
+  </div>
+  <div class="form-row bull-cluster-row">
+    <label for="node-config-input-clusterNodes"><i class="fa fa-sitemap"></i> Cluster Nodes</label>
+    <textarea id="node-config-input-clusterNodes" rows="3" style="width: 70%;" placeholder="host-a:6379, host-b:6379"></textarea>
+  </div>
+  <div class="form-row bull-sentinel-row">
+    <label for="node-config-input-sentinels"><i class="fa fa-sitemap"></i> Sentinels</label>
+    <textarea id="node-config-input-sentinels" rows="3" style="width: 70%;" placeholder="sentinel-a:26379, sentinel-b:26379"></textarea>
+  </div>
+  <div class="form-row bull-sentinel-row">
+    <label for="node-config-input-sentinelMasterName"><i class="fa fa-tag"></i> Master</label>
+    <input type="text" id="node-config-input-sentinelMasterName" placeholder="mymaster">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-db"><i class="fa fa-database"></i> Database</label>
+    <input type="number" id="node-config-input-db" placeholder="0">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-username"><i class="fa fa-user"></i> Username</label>
+    <input type="text" id="node-config-input-username" placeholder="default">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-password"><i class="fa fa-lock"></i> Password</label>
+    <input type="password" id="node-config-input-password">
+  </div>
+  <div class="form-row bull-sentinel-row">
+    <label for="node-config-input-sentinelUsername"><i class="fa fa-user"></i> Sentinel User</label>
+    <input type="text" id="node-config-input-sentinelUsername">
+  </div>
+  <div class="form-row bull-sentinel-row">
+    <label for="node-config-input-sentinelPassword"><i class="fa fa-lock"></i> Sentinel Pass</label>
+    <input type="password" id="node-config-input-sentinelPassword">
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-tls"><i class="fa fa-shield"></i> TLS</label>
+    <input type="checkbox" id="node-config-input-tls" style="display:inline-block; width:auto; vertical-align:top;">
+    <span>Use TLS for Redis data connections</span>
+  </div>
+  <div class="form-row bull-sentinel-row">
+    <label for="node-config-input-sentinelTls"><i class="fa fa-shield"></i> Sentinel TLS</label>
+    <input type="checkbox" id="node-config-input-sentinelTls" style="display:inline-block; width:auto; vertical-align:top;">
+    <span>Use TLS for Sentinel discovery</span>
+  </div>
+  <div class="form-row bull-tls-row">
+    <label for="node-config-input-tlsRejectUnauthorized"><i class="fa fa-check"></i> Verify TLS</label>
+    <input type="checkbox" id="node-config-input-tlsRejectUnauthorized" style="display:inline-block; width:auto; vertical-align:top;">
+    <span>Reject unauthorized certificates</span>
+  </div>
+  <div class="form-row bull-tls-row">
+    <label for="node-config-input-tlsServerName"><i class="fa fa-globe"></i> TLS Server Name</label>
+    <input type="text" id="node-config-input-tlsServerName" placeholder="redis.example.com">
+  </div>
+  <div class="form-row bull-tls-row">
+    <label for="node-config-input-tlsCa"><i class="fa fa-certificate"></i> CA</label>
+    <textarea id="node-config-input-tlsCa" rows="3" style="width: 70%;"></textarea>
+  </div>
+  <div class="form-row bull-tls-row">
+    <label for="node-config-input-tlsCert"><i class="fa fa-certificate"></i> Client Cert</label>
+    <textarea id="node-config-input-tlsCert" rows="3" style="width: 70%;"></textarea>
+  </div>
+  <div class="form-row bull-tls-row">
+    <label for="node-config-input-tlsKey"><i class="fa fa-key"></i> Client Key</label>
+    <textarea id="node-config-input-tlsKey" rows="3" style="width: 70%;"></textarea>
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-prefix"><i class="fa fa-code"></i> Prefix</label>
+    <input type="text" id="node-config-input-prefix" placeholder="{bull}">
   </div>
 </script>
 
 <script type="text/javascript">
-  RED.nodes.registerType("bull-queue-server", {
-    category: "config",
+  (function() {
+    function updateBullQueueServerRows() {
+      var deployment = $("#node-config-input-deployment").val() || "single";
+      $(".bull-single-row").toggle(deployment === "single");
+      $(".bull-cluster-row").toggle(deployment === "cluster");
+      $(".bull-sentinel-row").toggle(deployment === "sentinel");
+      $(".bull-tls-row").toggle($("#node-config-input-tls").is(":checked"));
+    }
+
+    RED.nodes.registerType("bull-queue-server", {
+      category: "config",
+      defaults: {
+        name: { value: "", required: true },
+        deployment: { value: "single", required: true },
+        address: { value: "localhost" },
+        port: { value: 6379, validate: RED.validators.number() },
+        db: { value: "" },
+        clusterNodes: { value: "" },
+        sentinels: { value: "" },
+        sentinelMasterName: { value: "" },
+        username: { value: "" },
+        sentinelUsername: { value: "" },
+        tls: { value: false },
+        sentinelTls: { value: false },
+        tlsRejectUnauthorized: { value: true },
+        tlsServerName: { value: "" },
+        prefix: { value: "" }
+      },
+      credentials: {
+        password: { type: "password" },
+        sentinelPassword: { type: "password" },
+        tlsCa: { type: "password" },
+        tlsCert: { type: "password" },
+        tlsKey: { type: "password" }
+      },
+      label: function() {
+        return this.name || this.address + ":" + this.port;
+      },
+      oneditprepare: function() {
+        $("#node-config-input-deployment").on("change", updateBullQueueServerRows);
+        $("#node-config-input-tls").on("change", updateBullQueueServerRows);
+        updateBullQueueServerRows();
+      }
+    });
+  })();
+</script>
+
+<script type="text/x-red" data-help-name="bull-queue-server">
+  <p>Configures the BullMQ queue name and Redis deployment used by the BullMQ nodes.</p>
+  <p>Standalone, Redis Cluster, AWS MemoryDB, and Sentinel deployments are supported. AWS MemoryDB should use Cluster deployment with TLS enabled.</p>
+  <p>For Redis Cluster and MemoryDB, use a shared BullMQ prefix such as <code>{bull}</code> so BullMQ keys stay in one hash slot for atomic operations.</p>
+  <p>Redis should use <code>maxmemory-policy=noeviction</code>. Bull v4 Redis queue data is not automatically migrated to BullMQ.</p>
+</script>
+
+<script type="text/x-red" data-template-name="bull cmd">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-queue"><i class="fa fa-tasks"></i> Queue</label>
+    <input type="text" id="node-input-queue">
+  </div>
+</script>
+
+<script type="text/x-red" data-help-name="bull cmd">
+  <p>Executes BullMQ producer and queue-administration commands from <code>msg.cmd</code>.</p>
+  <p><code>add</code> uses <code>msg.jobName</code>, <code>msg.jobData</code> or <code>msg.payload</code>, and <code>msg.jobopts</code>. Legacy <code>msg.jobopts.repeat.cron</code> is translated to a BullMQ Job Scheduler.</p>
+  <p>Repeat compatibility commands are mapped to Job Scheduler APIs: <code>count</code>, <code>getRepeatableJobs</code>, <code>getRepeatableJobByKey</code>, and <code>removeRepeatableByKey</code>.</p>
+</script>
+
+<script type="text/javascript">
+  RED.nodes.registerType("bull cmd", {
+    color: "#ffffff",
+    category: "function",
     defaults: {
-      name: {
-        value: "",
-        required: true
-      },
-      address: {
-        value: "localhost",
-        required: true
-      },
-      port: {
-        value: 6379,
-        required: true,
-        validate: RED.validators.number()
-      },
-			password : {
-				value : "",
-				required : false
-			}
+      name: { value: "" },
+      queue: { type: "bull-queue-server", required: true }
     },
+    inputs: 1,
+    outputs: 1,
+    align: "right",
+    icon: "bull_icon.png",
     label: function() {
-      return this.name ? this.name : this.address + "@" + this.port;
-    },
-    oneditprepare: function() {
-      var tabs = RED.tabs.create({
-        id: "node-config-bull-queue-server-tabs",
-        onchange: function(tab) {
-          $("#node-config-bull-queue-server-tabs-content")
-            .children()
-            .hide();
-          $("#" + tab.id).show();
-        }
-      });
-      tabs.addTab({
-        id: "bull-queue-server-tab-connection",
-        label: "Bull Queue"
-      });
-      setTimeout(function() {
-        tabs.resize();
-      }, 0);
+      return this.name || "bull cmd";
     }
   });
 </script>
 
 <script type="text/x-red" data-template-name="bull run">
   <div class="form-row">
-  	<label for="node-input-name"><i class="fa fa-tag"></i> <span>Name</span></label>
-  	<input type="text" id="node-input-name" placeholder="Enter a name">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name">
   </div>
   <div class="form-row">
-  	<label for="node-input-queue"><i class="fa fa-globe"></i> <span>Queue</span></label>
-  	<input type="text" id="node-input-queue" placeholder="Enter queue name">
+    <label for="node-input-queue"><i class="fa fa-tasks"></i> Queue</label>
+    <input type="text" id="node-input-queue">
   </div>
   <div class="form-row">
-  	<label for="node-input-outputs"><i class="fa fa-random"></i> <span>Outputs</span></label>
-  	<input id="node-input-outputs" style="width: 60px; height: 1.7em;" value="1">
+    <label for="node-input-completionMode"><i class="fa fa-check-circle"></i> Completion</label>
+    <select id="node-input-completionMode" style="width: 70%;">
+      <option value="immediate">Immediate</option>
+      <option value="manual">Manual acknowledgement</option>
+    </select>
+  </div>
+  <div class="form-row">
+    <label for="node-input-ackTimeout"><i class="fa fa-clock-o"></i> Ack Timeout</label>
+    <input type="number" id="node-input-ackTimeout" placeholder="300000">
+  </div>
+  <div class="form-row">
+    <label for="node-input-concurrency"><i class="fa fa-random"></i> Concurrency</label>
+    <input type="number" id="node-input-concurrency" placeholder="1">
+  </div>
+  <div class="form-row">
+    <label for="node-input-limiterMax"><i class="fa fa-tachometer"></i> Limiter Max</label>
+    <input type="number" id="node-input-limiterMax">
+  </div>
+  <div class="form-row">
+    <label for="node-input-limiterDuration"><i class="fa fa-hourglass-half"></i> Limiter Duration</label>
+    <input type="number" id="node-input-limiterDuration">
   </div>
 </script>
 
 <script type="text/x-red" data-help-name="bull run">
-  <p>A function block where you can write code to run in the background as a queued job which is used OptimalBits/bull library as the core of job management.</p>
-  <p>The message is passed in as a JavaScript object called <code>msg.job</code> and <code>msg.done</code> object to the job function.</p>
-  <p>By convention it will pass a whole <code>msg</code> object to the job data as the parameter of the queue function.</p>
-  <strong>Queued job management:</strong>
-  <p>When writting a queued execution code, these funcions are available:</p>
-  <ul>
-  <li><code>job.progress(50)</code></li>
-  <li><code>done()</code></li>
-  <li><code>done(Error('error transcoding'))</code></li>
-  <li><code>done(null, { message: "Passing result..." })</code></li>
-  </ul>
-  </p>
-  <strong>Logging and Error Handling</strong>
-  <p>To log any information, or report an error, the following functions are available:</p>
-  <ul>
-  <li><code>node.log("Log")</code></li>
-  <li><code>node.warn("Warning")</code></li>
-  <li><code>node.error("Error")</code></li>
-  </ul>
-  </p>
-  <p>The Catch node can also be used to handle errors. To invoke a Catch node,
-  pass <code>msg</code> as a second argument to <code>node.error</code>:</p>
-  <pre>node.error("Error",msg)</pre>
-  <h4>Sending messages</h4>
-  <p>The function can either return the messages it wants to pass on to the next nodes
-  in the flow, or can call <code>node.send(messages)</code>.</p>
-  <p>It can return/send:</p>
-  <ul>
-  <li>a single message object - passed to nodes connected to the first output</li>
-  <li>an array of message objects - passed to nodes connected to the corresponding outputs</li>
-  </ul>
-  <p>If any element of the array is itself an array of messages, multiple
-  messages are sent to the corresponding output.</p>
-  <p>If null is returned, either by itself or as an element of the array, no
-  message is passed on.</p>
-  <p>See the <a target="_new" href="http://nodered.org/docs/writing-functions.html">online documentation</a> for more help.</p>
+  <p>Creates a BullMQ Worker for the configured queue and emits each job as a Node-RED message.</p>
+  <p>Immediate mode completes the BullMQ job after sending the message. Manual acknowledgement mode keeps the job active until a downstream <code>bull job</code> node completes, fails, or updates it.</p>
+  <p>The output includes <code>msg.payload</code>, serialized <code>msg.job</code> metadata, and <code>msg.bull</code> queue context.</p>
 </script>
 
 <script type="text/javascript">
@@ -145,27 +223,15 @@ limitations under the License.
     color: "#ffffff",
     category: "function",
     defaults: {
-      name: {
-        value: ""
-      },
-      func: {
-        value: "\nreturn msg;"
-      },
-      outputs: {
-        value: 1
-      },
-      noerr: {
-        value: 0,
-        required: true,
-        validate: function(v) {
-          return !v || v === 0 ? true : false;
-        }
-      },
-      queue: {
-        type: "bull-queue-server",
-        required: true
-      }
+      name: { value: "" },
+      queue: { type: "bull-queue-server", required: true },
+      completionMode: { value: "immediate" },
+      ackTimeout: { value: 300000, validate: RED.validators.number() },
+      concurrency: { value: 1, validate: RED.validators.number() },
+      limiterMax: { value: "" },
+      limiterDuration: { value: "" }
     },
+    inputs: 0,
     outputs: 1,
     align: "left",
     icon: "bull_icon.png",
@@ -175,47 +241,119 @@ limitations under the License.
   });
 </script>
 
-<script type="text/x-red" data-template-name="bull cmd">
+<script type="text/x-red" data-template-name="bull job">
   <div class="form-row">
-  	<label for="node-input-name"><i class="fa fa-tag"></i> <span>Name</span></label>
-  	<input type="text" id="node-input-name" placeholder="Enter a name">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name">
   </div>
   <div class="form-row">
-  	<label for="node-input-queue"><i class="fa fa-globe"></i> <span>Queue</span></label>
-  	<input type="text" id="node-input-queue" placeholder="Enter queue name">
+    <label for="node-input-action"><i class="fa fa-check"></i> Action</label>
+    <select id="node-input-action" style="width: 70%;">
+      <option value="complete">Complete</option>
+      <option value="fail">Fail</option>
+      <option value="failUnrecoverable">Fail unrecoverable</option>
+      <option value="progress">Progress</option>
+      <option value="rateLimit">Rate limit</option>
+      <option value="removeDeduplicationKey">Remove deduplication key</option>
+      <option value="getChildrenValues">Get children values</option>
+      <option value="getFailedChildrenValues">Get failed children values</option>
+      <option value="removeUnprocessedChildren">Remove unprocessed children</option>
+    </select>
   </div>
 </script>
 
-<script type="text/x-red" data-help-name="bull cmd">
-  <p>A command node to execute a queue in the background as a queued job which is used OptimalBits/bull library as the core of job management.</p>
-  <p>The message is passed in as a JavaScript object called <code>msg</code>.</p>
-  <p>By convention it will have a <code>msg.payload</code> property containing the body of the message which is passed to the queue job.</p>
+<script type="text/x-red" data-help-name="bull job">
+  <p>Acts on an active job emitted by a manual-mode <code>bull run</code> node.</p>
+  <p>The configured action can be overridden with <code>msg.cmd</code>. The node uses the opaque <code>msg.bull.ackId</code> and does not expose BullMQ lock tokens.</p>
 </script>
 
 <script type="text/javascript">
-  RED.nodes.registerType("bull cmd", {
+  RED.nodes.registerType("bull job", {
     color: "#ffffff",
     category: "function",
     defaults: {
-      name: {
-        value: ""
-      },
-      queue: {
-        type: "bull-queue-server",
-        required: true
-      },
-      cmd: {
-        value: 0,
-        required: true,
-        validate: RED.validators.number()
-      }
+      name: { value: "" },
+      action: { value: "complete" }
     },
     inputs: 1,
     outputs: 1,
     align: "right",
     icon: "bull_icon.png",
     label: function() {
-      return this.name || "bull cmd";
+      return this.name || "bull job";
+    }
+  });
+</script>
+
+<script type="text/x-red" data-template-name="bull events">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-queue"><i class="fa fa-tasks"></i> Queue</label>
+    <input type="text" id="node-input-queue">
+  </div>
+  <div class="form-row">
+    <label for="node-input-events"><i class="fa fa-bell"></i> Events</label>
+    <textarea id="node-input-events" rows="4" style="width: 70%;" placeholder="completed, failed, progress"></textarea>
+  </div>
+</script>
+
+<script type="text/x-red" data-help-name="bull events">
+  <p>Subscribes to BullMQ QueueEvents and emits global queue events as Node-RED messages.</p>
+  <p>Leave Events empty to subscribe to the documented default event set, or provide a comma/newline separated list.</p>
+</script>
+
+<script type="text/javascript">
+  RED.nodes.registerType("bull events", {
+    color: "#ffffff",
+    category: "function",
+    defaults: {
+      name: { value: "" },
+      queue: { type: "bull-queue-server", required: true },
+      events: { value: "" }
+    },
+    inputs: 0,
+    outputs: 1,
+    align: "left",
+    icon: "bull_icon.png",
+    label: function() {
+      return this.name || "bull events";
+    }
+  });
+</script>
+
+<script type="text/x-red" data-template-name="bull flow">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-queue"><i class="fa fa-tasks"></i> Queue</label>
+    <input type="text" id="node-input-queue">
+  </div>
+</script>
+
+<script type="text/x-red" data-help-name="bull flow">
+  <p>Adds atomic BullMQ parent/child job trees with <code>FlowProducer</code>.</p>
+  <p>Pass the flow tree in <code>msg.payload</code> and optional FlowProducer options in <code>msg.flowopts</code>.</p>
+</script>
+
+<script type="text/javascript">
+  RED.nodes.registerType("bull flow", {
+    color: "#ffffff",
+    category: "function",
+    defaults: {
+      name: { value: "" },
+      queue: { type: "bull-queue-server", required: true }
+    },
+    inputs: 1,
+    outputs: 1,
+    align: "right",
+    icon: "bull_icon.png",
+    label: function() {
+      return this.name || "bull flow";
     }
   });
 </script>

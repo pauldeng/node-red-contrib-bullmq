@@ -1,66 +1,110 @@
 # node-red-contrib-bull
 
-![Version](https://img.shields.io/badge/version-0.0.1-blue.svg?cacheSeconds=2592000)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/pauldeng/node-red-contrib-bull/blob/master/LICENSE)
+Node-RED nodes for BullMQ-backed Redis job queues.
 
-> A powerful job queue nodes for Node-RED.
+This migration targets BullMQ 5.78.0, Node-RED 4.1, and Node.js 24 or newer. It preserves the legacy `bull-queue-server`, `bull cmd`, and `bull run` node types where BullMQ has compatible behavior, and adds `bull job`, `bull events`, and `bull flow`.
 
-This repo is not in production quality. I use it primirarly for bulls repeatble jobs and I do not implement and test other functions. Pull Request welcome.  
-This repo is forked from [node-red-contrib-job-queue](https://github.com/cuongquay/node-red-contrib-job-queue) but with comperhensive changes. The changes are:
+## Requirements
 
-- updated bull to 4.2.1
-- removed the function in queue-run node
-- removed the Command drop down box from queue-cmd node, this node accepts new command from msg input
-- rename and icon
+- Node.js 24+
+- Node-RED 4.1.x
+- Redis with `maxmemory-policy=noeviction`
+- BullMQ 5.78.0
 
-## Install
+Bull v4 Redis data is not automatically migrated. Drain, retire, or otherwise handle old Bull queues before upgrading the runtime dependency.
 
-```sh
-sudo apt install redis
-cd ~/.node-red
-npm install https://github.com/pauldeng/node-red-contrib-bull.git
+## Nodes
+
+- `bull-queue-server`: shared BullMQ queue and Redis deployment config.
+- `bull cmd`: message-driven producer and queue administration commands.
+- `bull run`: BullMQ Worker that emits jobs into a Node-RED flow.
+- `bull job`: manual acknowledgement and active-job actions for manual `bull run` flows.
+- `bull events`: QueueEvents source node for global BullMQ events.
+- `bull flow`: FlowProducer node for parent/child job trees.
+
+## Redis Deployments
+
+Supported deployment modes:
+
+- Standalone Redis
+- Redis Cluster
+- AWS MemoryDB, configured as Redis Cluster with TLS
+- Redis Sentinel
+
+Authentication can use Redis ACL username/password. TLS supports CA, client certificate, client key, server name, and certificate verification. Cluster and MemoryDB deployments should use a BullMQ prefix with a hash tag, such as `{bull}`, to keep queue keys in one Redis Cluster slot for atomic operations.
+
+## Legacy Repeat Cron Compatibility
+
+The legacy repeat flow remains supported through BullMQ Job Schedulers:
+
+```js
+msg.payload = "gateway-FCC23DFFFE0AA2A8";
+msg.cmd = "add";
+msg.jobopts = {
+  jobId: msg.payload,
+  repeat: {
+    cron: "30 9,19,29,39,49,59 * * * *",
+  },
+};
+return msg;
 ```
 
-## Run Example
+The scheduler id is `msg.schedulerId` when present, otherwise `msg.jobopts.jobId`. `repeat.cron` is translated to `repeat.pattern`; conflicting `cron` and `pattern` values are rejected.
 
-1. copy the content within examples/example_flow.json
-2. paste it into Node-Red import Clipboard
-3. click inject node to "simple", it will add job to bull queue. Debug node linked to bull run will print the payload.
-4. click inject node to "add cron job", it will add cron job to bull queue. Debug node linked to bull run will print the payload every 10 seconds
-5. click inject node to "getRepeatableJobs", it will retrivev all repeatable jobs. Debug node will print all repeatable jobs in msg.payload
-6. click inject node to "count", it will count all repeatable jobs. Debug node will print the total number of repeatable jobs in msg.payload
-7. click inject node to "removeRepeatableByKey", it delete the repeatable job which contains msg.jobid.
-8. click inject node to "stopAndRemoveAllJobs", it delete all repeatable job.
+## Commands
+
+`bull cmd` reads `msg.cmd`. The default command is `add`.
+
+Core supported command families include:
+
+- add jobs, add bulk jobs, get jobs, retry jobs, remove jobs
+- delayed jobs and delay promotion
+- priorities and priority counts
+- deduplication keys
+- Job Scheduler commands and legacy repeat aliases
+- pause, resume, drain, clean, and `stopAndRemoveAllJobs`
+- global concurrency and rate limits
+- job logs and Prometheus metrics export
+
+See [docs/COMMANDS.md](docs/COMMANDS.md).
+
+## Unsupported
+
+| BullMQ feature | Reason |
+| --- | --- |
+| Sandboxed processors | They bypass the Node-RED flow and downstream acknowledgement model. |
+| Custom JavaScript backoff strategies | Executable strategy code is not a safe Node-RED message contract. Use built-in fixed/exponential backoff. |
+| BullMQ Pro features | Pro groups, batches, and observables are not part of the open-source BullMQ dependency. |
+| Built-in dashboard | Use a dedicated queue UI; this package only provides Node-RED nodes. |
+| Arbitrary method proxying | Unrestricted method dispatch is hard to validate, document, secure, and test. |
+| Automatic Bull v4 Redis data migration | Bull and BullMQ do not provide a supported queue-data migration contract. |
+
+## Examples
+
+Import [examples/example_flow.json](examples/example_flow.json) into Node-RED. It includes:
+
+- simple add and run
+- required `basecasts` scheduled job
+- delayed and prioritized jobs
+- manual acknowledgement
+- QueueEvents
+- parent/child flow producer
+
+The examples do not contain secrets.
 
 ## Development
 
 ```sh
-sudo apt install redis
-cd
-git clone https://github.com/pauldeng/node-red-contrib-bull.git
-cd node-red-contrib-bull
-npm link
-cd ~/.node-red
-npm link node-red-contrib-bull
-# make code changes and restart node-red to test
+npm install
+npm test
 ```
 
-## Roadmap
+Use [docs/TESTING.md](docs/TESTING.md) for Docker, Playwright, and MemoryDB test plans. Use [docs/CHANGE_WORKFLOW.md](docs/CHANGE_WORKFLOW.md) before changing behavior.
 
-- [ ] Node connection status
-- [ ] Reconnect status
+## More Docs
 
-## Author
-
-👤 **Paul Deng**
-
-- Twitter: [@pauldeng](https://twitter.com/pauldeng)
-- Github: [@pauldeng](https://github.com/pauldeng)
-
-## 📝 License
-
-Copyright © 2022 [Paul Deng](https://github.com/pauldeng).
-
-This project is [MIT](https://github.com/pauldeng/node-red-contrib-bull/blob/master/LICENSE) licensed.
-
----
+- [Architecture](docs/ARCHITECTURE.md)
+- [Node Guide](docs/NODE_GUIDE.md)
+- [Connection Guide](docs/CONNECTIONS.md)
+- [Migration Guide](docs/MIGRATION.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
