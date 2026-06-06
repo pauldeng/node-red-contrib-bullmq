@@ -91,6 +91,46 @@ test("examples include simple BullMQ feature import flows", () => {
   }
 });
 
+test("examples include a dedicated repeatable jobs command flow", () => {
+  const fileText = read("examples/repeatable_jobs.json");
+  const example = JSON.parse(fileText);
+  const readme = read("examples/README.md");
+  const nodeText = JSON.stringify(example);
+  const functionText = example
+    .filter((node) => node.type === "function")
+    .map((node) => node.func)
+    .join("\n");
+  const searchableText = `${nodeText}\n${functionText}`;
+
+  for (const label of [
+    "repeat: add basecasts job",
+    "repeat: getRepeatableJobs",
+    "repeat: count",
+    "repeat: getRepeatableJobByKey",
+    "repeat: removeRepeatableByKey",
+    "repeat: stopAndRemoveAllJobs",
+  ]) {
+    assert.match(searchableText, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+
+  for (const text of [
+    "msg.cmd = \"add\"",
+    "msg.jobopts = {\"jobId\": msg.payload, \"repeat\": {\"cron\": \"30 9,19,29,39,49,59 * * * *\"}};",
+    "msg.cmd = \"stopAndRemoveAllJobs\"",
+    "msg.cmd = \"getRepeatableJobs\"",
+    "msg.cmd = \"count\"",
+    "msg.cmd = \"removeRepeatableByKey\"",
+    "msg.jobid = msg.payload",
+    "msg.cmd = \"getRepeatableJobByKey\"",
+    "gateway-FCC23DFFFE0AA2A8",
+  ]) {
+    assert.match(searchableText, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+
+  assert.match(readme, /repeatable_jobs\.json/);
+  assert.match(readme, /stopAndRemoveAllJobs/);
+});
+
 test("testing docs describe the executable Docker deployment matrix", () => {
   const testing = read("docs/TESTING.md");
   for (const text of [
@@ -127,7 +167,10 @@ test("repository text does not contain MemoryDB secret assignments", () => {
     "docs/MIGRATION.md",
     "docs/COMMANDS.md",
     "docs/CONNECTIONS.md",
+    "examples/README.md",
     "examples/example_flow.json",
+    "examples/bullmq_features.json",
+    "examples/repeatable_jobs.json",
     "package.json",
   ];
 

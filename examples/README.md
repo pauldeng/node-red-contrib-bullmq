@@ -20,3 +20,16 @@ Small BullMQ feature examples that all use one local Redis queue config named `b
 - Flow: `flow: parent plus child` sends a parent/child tree to `bull flow`.
 
 Point `bullmq-features` at your Redis deployment before deploying the flow.
+
+## `repeatable_jobs.json`
+
+Dedicated repeatable job commands for the `basecasts` queue.
+
+- `repeat: add basecasts job` sends `msg.cmd = "add"` with `msg.jobopts.repeat.cron`.
+- `repeat: getRepeatableJobs` lists repeatable schedulers.
+- `repeat: count` counts repeatable schedulers.
+- `repeat: getRepeatableJobByKey` reads the scheduler id from `msg.payload` into `msg.jobid`.
+- `repeat: removeRepeatableByKey` removes the scheduler id from `msg.payload`.
+- `repeat: stopAndRemoveAllJobs` sends `msg.cmd = "stopAndRemoveAllJobs"` to remove schedulers and clean inactive jobs.
+
+Use the add inject first, then inspect with get/count/get-by-key. Use remove-by-key for one scheduler or stopAndRemoveAllJobs for full cleanup.

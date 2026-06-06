@@ -6,6 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { setTimeout: sleep } = require("node:timers/promises");
 const test = require("node:test");
+const vm = require("node:vm");
 
 const Redis = require("ioredis");
 const helper = require("node-red-node-test-helper");
@@ -111,6 +112,17 @@ function queueConfig(id, name, redis) {
     address: "127.0.0.1",
     port: String(redis.port),
   };
+}
+
+function readExampleFlow(relativePath) {
+  return JSON.parse(fs.readFileSync(path.join(__dirname, "..", relativePath), "utf8"));
+}
+
+function messageFromExampleFunction(flow, nodeId, msg) {
+  const node = flow.find((candidate) => candidate.id === nodeId);
+  assert.ok(node, `missing example function node ${nodeId}`);
+  const script = new vm.Script(`(function(msg) { ${node.func}\n})(msg)`);
+  return script.runInNewContext({ msg: { ...msg } }, { timeout: 1000 });
 }
 
 async function receiveCommand(node, output, msg) {
@@ -286,6 +298,116 @@ test(
 
       assert.equal((await addOutput).payload.name, "default");
       assert.equal((await completeOutput).payload, "manual ack payload");
+    } finally {
+      await stopHelper(userDir);
+      redis.stop();
+    }
+  }
+);
+
+test(
+  "dedicated repeatable jobs example commands work against Redis",
+  { skip: !enabled },
+  async () => {
+    const redis = await startRedis();
+    const userDir = await startHelper();
+
+    try {
+      const example = readExampleFlow("examples/repeatable_jobs.json");
+      const flow = [
+        { id: "tab", type: "tab", label: "repeat example verification" },
+        {
+          ...example.find((node) => node.id === "queue-repeatable-jobs"),
+          id: "queue",
+          address: "127.0.0.1",
+          port: String(redis.port),
+        },
+        {
+          id: "cmd",
+          type: "bull cmd",
+          z: "tab",
+          name: "cmd",
+          queue: "queue",
+          x: 180,
+          y: 120,
+          wires: [["cmd-out"]],
+        },
+        { id: "cmd-out", type: "helper", z: "tab", x: 380, y: 120, wires: [] },
+      ];
+
+      await helper.load(bullNodes, flow);
+      const cmd = helper.getNode("cmd");
+      const output = helper.getNode("cmd-out");
+
+      const schedulerId = "gateway-FCC23DFFFE0AA2A8";
+      const addResult = await receiveCommand(
+        cmd,
+        output,
+        messageFromExampleFunction(example, "fn-repeat-add", { payload: schedulerId })
+      );
+      assert.equal(addResult.payload.name, "default");
+      assert.equal(addResult.payload.data.payload, schedulerId);
+
+      const listResult = await receiveCommand(
+        cmd,
+        output,
+        messageFromExampleFunction(example, "fn-repeat-get-all", {})
+      );
+      assert.deepEqual(
+        listResult.payload.map((scheduler) => scheduler.key),
+        [schedulerId]
+      );
+
+      const countResult = await receiveCommand(
+        cmd,
+        output,
+        messageFromExampleFunction(example, "fn-repeat-count", {})
+      );
+      assert.equal(countResult.payload, 1);
+
+      const getResult = await receiveCommand(
+        cmd,
+        output,
+        messageFromExampleFunction(example, "fn-repeat-get-by-key", {
+          payload: schedulerId,
+        })
+      );
+      assert.equal(getResult.payload.key, schedulerId);
+      assert.equal(getResult.payload.pattern, "30 9,19,29,39,49,59 * * * *");
+
+      const removeResult = await receiveCommand(
+        cmd,
+        output,
+        messageFromExampleFunction(example, "fn-repeat-remove-by-key", {
+          payload: schedulerId,
+        })
+      );
+      assert.equal(removeResult.payload, true);
+
+      const emptyCount = await receiveCommand(
+        cmd,
+        output,
+        messageFromExampleFunction(example, "fn-repeat-count", {})
+      );
+      assert.equal(emptyCount.payload, 0);
+
+      await receiveCommand(
+        cmd,
+        output,
+        messageFromExampleFunction(example, "fn-repeat-add", { payload: schedulerId })
+      );
+      const stopResult = await receiveCommand(
+        cmd,
+        output,
+        messageFromExampleFunction(example, "fn-repeat-stop-all", {})
+      );
+      assert.deepEqual(stopResult.payload.removedSchedulers, [schedulerId]);
+      const finalCount = await receiveCommand(
+        cmd,
+        output,
+        messageFromExampleFunction(example, "fn-repeat-count", {})
+      );
+      assert.equal(finalCount.payload, 0);
     } finally {
       await stopHelper(userDir);
       redis.stop();
