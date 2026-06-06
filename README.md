@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="node-red-contrib-bull logo" width="180">
+</p>
+
 # node-red-contrib-bull
 
 Node-RED nodes for BullMQ-backed Redis job queues.
