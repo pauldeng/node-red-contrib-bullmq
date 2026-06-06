@@ -59,8 +59,11 @@ test("testing docs describe the executable Docker deployment matrix", () => {
     "npm run test:deployments",
     "single-noauth",
     "single-auth",
+    "single-tls",
     "cluster-auth",
+    "cluster-tls",
     "sentinel-auth",
+    "sentinel-tls",
     "MEMORYDB_ENABLED=1",
   ]) {
     assert.match(testing, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

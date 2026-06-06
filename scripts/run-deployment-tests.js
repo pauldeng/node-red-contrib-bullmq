@@ -10,14 +10,22 @@ const AUTH_PASSWORD = "node-red-pass";
 const PROJECT_PREFIX = "node-red-contrib-bull";
 const SINGLE_NOAUTH_PORT = process.env.BULLMQ_SINGLE_NOAUTH_PORT || "16379";
 const SINGLE_AUTH_PORT = process.env.BULLMQ_SINGLE_AUTH_PORT || "16380";
+const SINGLE_TLS_PORT = process.env.BULLMQ_SINGLE_TLS_PORT || "16387";
 const CLUSTER_PORT_A = process.env.BULLMQ_CLUSTER_PORT_A || "17000";
 const CLUSTER_PORT_B = process.env.BULLMQ_CLUSTER_PORT_B || "17001";
+const CLUSTER_TLS_PORT_A = process.env.BULLMQ_CLUSTER_TLS_PORT_A || "17002";
+const CLUSTER_TLS_PORT_B = process.env.BULLMQ_CLUSTER_TLS_PORT_B || "17003";
 const SENTINEL_MASTER_PORT = process.env.BULLMQ_SENTINEL_MASTER_PORT || "16381";
 const SENTINEL_REPLICA_PORT_A = process.env.BULLMQ_SENTINEL_REPLICA_PORT_A || "16382";
 const SENTINEL_REPLICA_PORT_B = process.env.BULLMQ_SENTINEL_REPLICA_PORT_B || "16383";
 const SENTINEL_PORT_A = process.env.BULLMQ_SENTINEL_PORT_A || "26390";
 const SENTINEL_PORT_B = process.env.BULLMQ_SENTINEL_PORT_B || "26391";
 const SENTINEL_PORT_C = process.env.BULLMQ_SENTINEL_PORT_C || "26392";
+const SENTINEL_TLS_MASTER_PORT =
+  process.env.BULLMQ_SENTINEL_TLS_MASTER_PORT || "16384";
+const SENTINEL_TLS_PORT_A = process.env.BULLMQ_SENTINEL_TLS_PORT_A || "26393";
+const SENTINEL_TLS_PORT_B = process.env.BULLMQ_SENTINEL_TLS_PORT_B || "26394";
+const SENTINEL_TLS_PORT_C = process.env.BULLMQ_SENTINEL_TLS_PORT_C || "26395";
 
 let dockerCommand = ["docker"];
 
@@ -139,6 +147,30 @@ function waitForSingleAuth() {
   );
 }
 
+function waitForSingleTls() {
+  waitUntil(
+    "single-tls Redis",
+    () => {
+      const result = dockerCapture(
+        composeArgs("single-tls", [
+          "exec",
+          "-T",
+          "redis",
+          "redis-cli",
+          "--tls",
+          "--insecure",
+          "-p",
+          SINGLE_TLS_PORT,
+          "PING",
+        ])
+      );
+      result.ready = /PONG/.test(result.stdout || "");
+      return result;
+    },
+    30000
+  );
+}
+
 function waitForClusterAuth() {
   waitUntil(
     "cluster-auth Redis Cluster",
@@ -152,6 +184,31 @@ function waitForClusterAuth() {
           "-p",
           CLUSTER_PORT_A,
           ...redisAuthArgs(),
+          "CLUSTER",
+          "INFO",
+        ])
+      );
+      result.ready = /cluster_state:ok/.test(result.stdout || "");
+      return result;
+    },
+    45000
+  );
+}
+
+function waitForClusterTls() {
+  waitUntil(
+    "cluster-tls Redis Cluster",
+    () => {
+      const result = dockerCapture(
+        composeArgs("cluster-tls", [
+          "exec",
+          "-T",
+          "redis-17002",
+          "redis-cli",
+          "--tls",
+          "--insecure",
+          "-p",
+          CLUSTER_TLS_PORT_A,
           "CLUSTER",
           "INFO",
         ])
@@ -182,6 +239,33 @@ function waitForSentinelAuth() {
       );
       result.ready = /127\.0\.0\.1/.test(result.stdout || "") &&
         new RegExp(SENTINEL_MASTER_PORT).test(result.stdout || "");
+      return result;
+    },
+    45000
+  );
+}
+
+function waitForSentinelTls() {
+  waitUntil(
+    "sentinel-tls Redis Sentinel",
+    () => {
+      const result = dockerCapture(
+        composeArgs("sentinel-tls", [
+          "exec",
+          "-T",
+          "sentinel-26393",
+          "redis-cli",
+          "--tls",
+          "--insecure",
+          "-p",
+          SENTINEL_TLS_PORT_A,
+          "SENTINEL",
+          "get-master-addr-by-name",
+          "mymaster",
+        ])
+      );
+      result.ready = /127\.0\.0\.1/.test(result.stdout || "") &&
+        new RegExp(SENTINEL_TLS_MASTER_PORT).test(result.stdout || "");
       return result;
     },
     45000
@@ -274,6 +358,16 @@ function main() {
       wait: waitForSingleAuth,
     },
     {
+      name: "single-tls",
+      env: deploymentEnv("single-tls", {
+        BULLMQ_REDIS_MODE: "single",
+        BULLMQ_PORT: SINGLE_TLS_PORT,
+        BULLMQ_TLS: "true",
+        BULLMQ_TLS_REJECT_UNAUTHORIZED: "false",
+      }),
+      wait: waitForSingleTls,
+    },
+    {
       name: "cluster-auth",
       env: deploymentEnv("cluster-auth", {
         BULLMQ_REDIS_MODE: "cluster",
@@ -283,6 +377,17 @@ function main() {
         BULLMQ_QUEUE_PREFIX: "{bull}",
       }),
       wait: waitForClusterAuth,
+    },
+    {
+      name: "cluster-tls",
+      env: deploymentEnv("cluster-tls", {
+        BULLMQ_REDIS_MODE: "cluster",
+        BULLMQ_CLUSTER_NODES: `127.0.0.1:${CLUSTER_TLS_PORT_A},127.0.0.1:${CLUSTER_TLS_PORT_B}`,
+        BULLMQ_TLS: "true",
+        BULLMQ_TLS_REJECT_UNAUTHORIZED: "false",
+        BULLMQ_QUEUE_PREFIX: "{bull}",
+      }),
+      wait: waitForClusterTls,
     },
     {
       name: "sentinel-auth",
@@ -295,6 +400,19 @@ function main() {
         BULLMQ_PASSWORD: AUTH_PASSWORD,
       }),
       wait: waitForSentinelAuth,
+    },
+    {
+      name: "sentinel-tls",
+      env: deploymentEnv("sentinel-tls", {
+        BULLMQ_REDIS_MODE: "sentinel",
+        BULLMQ_PORT: SENTINEL_TLS_MASTER_PORT,
+        BULLMQ_SENTINELS: `127.0.0.1:${SENTINEL_TLS_PORT_A},127.0.0.1:${SENTINEL_TLS_PORT_B},127.0.0.1:${SENTINEL_TLS_PORT_C}`,
+        BULLMQ_SENTINEL_MASTER_NAME: "mymaster",
+        BULLMQ_TLS: "true",
+        BULLMQ_SENTINEL_TLS: "true",
+        BULLMQ_TLS_REJECT_UNAUTHORIZED: "false",
+      }),
+      wait: waitForSentinelTls,
     },
   ];
 

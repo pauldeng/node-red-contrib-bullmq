@@ -31,8 +31,12 @@
 - `scripts/run-deployment-tests.js`: Docker and optional MemoryDB deployment runner.
 - `test/deployments/single-noauth/`: standalone Redis without auth.
 - `test/deployments/single-auth/`: standalone Redis with ACL auth.
+- `test/deployments/single-tls/`: standalone Redis with TLS.
 - `test/deployments/cluster-auth/`: Redis Cluster with ACL auth.
+- `test/deployments/cluster-tls/`: Redis Cluster with TLS.
 - `test/deployments/sentinel-auth/`: Redis Sentinel with data-node ACL auth.
+- `test/deployments/sentinel-tls/`: Redis Sentinel with TLS for data-node and Sentinel connections.
+- `test/deployments/tls-certs/`: local self-signed certificates for Docker TLS fixtures.
 
 ## User Docs
 

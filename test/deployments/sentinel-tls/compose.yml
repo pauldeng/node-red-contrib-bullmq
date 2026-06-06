@@ -1,0 +1,131 @@
+services:
+  redis-master:
+    image: ${REDIS_TOPOLOGY_IMAGE:-redis:7.2-alpine}
+    network_mode: host
+    command:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis-master.conf:/usr/local/etc/redis/redis.conf:ro
+      - ../tls-certs:/tls:ro
+      - redis-master-data:/data
+
+  redis-replica-16385:
+    image: ${REDIS_TOPOLOGY_IMAGE:-redis:7.2-alpine}
+    network_mode: host
+    command:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis-replica-16385.conf:/usr/local/etc/redis/redis.conf:ro
+      - ../tls-certs:/tls:ro
+      - redis-replica-16385-data:/data
+
+  redis-replica-16386:
+    image: ${REDIS_TOPOLOGY_IMAGE:-redis:7.2-alpine}
+    network_mode: host
+    command:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis-replica-16386.conf:/usr/local/etc/redis/redis.conf:ro
+      - ../tls-certs:/tls:ro
+      - redis-replica-16386-data:/data
+
+  sentinel-26393:
+    image: ${REDIS_TOPOLOGY_IMAGE:-redis:7.2-alpine}
+    network_mode: host
+    depends_on:
+      - redis-master
+      - redis-replica-16385
+      - redis-replica-16386
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cat > /tmp/sentinel.conf <<'EOF'
+        port 0
+        tls-port 26393
+        bind 127.0.0.1
+        protected-mode no
+        dir /tmp
+        tls-cert-file /tls/redis.crt
+        tls-key-file /tls/redis.key
+        tls-ca-cert-file /tls/ca.crt
+        tls-auth-clients no
+        tls-replication yes
+        sentinel monitor mymaster 127.0.0.1 16384 2
+        sentinel down-after-milliseconds mymaster 1000
+        sentinel failover-timeout mymaster 10000
+        sentinel parallel-syncs mymaster 1
+        EOF
+        exec redis-sentinel /tmp/sentinel.conf
+    volumes:
+      - ../tls-certs:/tls:ro
+
+  sentinel-26394:
+    image: ${REDIS_TOPOLOGY_IMAGE:-redis:7.2-alpine}
+    network_mode: host
+    depends_on:
+      - redis-master
+      - redis-replica-16385
+      - redis-replica-16386
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cat > /tmp/sentinel.conf <<'EOF'
+        port 0
+        tls-port 26394
+        bind 127.0.0.1
+        protected-mode no
+        dir /tmp
+        tls-cert-file /tls/redis.crt
+        tls-key-file /tls/redis.key
+        tls-ca-cert-file /tls/ca.crt
+        tls-auth-clients no
+        tls-replication yes
+        sentinel monitor mymaster 127.0.0.1 16384 2
+        sentinel down-after-milliseconds mymaster 1000
+        sentinel failover-timeout mymaster 10000
+        sentinel parallel-syncs mymaster 1
+        EOF
+        exec redis-sentinel /tmp/sentinel.conf
+    volumes:
+      - ../tls-certs:/tls:ro
+
+  sentinel-26395:
+    image: ${REDIS_TOPOLOGY_IMAGE:-redis:7.2-alpine}
+    network_mode: host
+    depends_on:
+      - redis-master
+      - redis-replica-16385
+      - redis-replica-16386
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cat > /tmp/sentinel.conf <<'EOF'
+        port 0
+        tls-port 26395
+        bind 127.0.0.1
+        protected-mode no
+        dir /tmp
+        tls-cert-file /tls/redis.crt
+        tls-key-file /tls/redis.key
+        tls-ca-cert-file /tls/ca.crt
+        tls-auth-clients no
+        tls-replication yes
+        sentinel monitor mymaster 127.0.0.1 16384 2
+        sentinel down-after-milliseconds mymaster 1000
+        sentinel failover-timeout mymaster 10000
+        sentinel parallel-syncs mymaster 1
+        EOF
+        exec redis-sentinel /tmp/sentinel.conf
+    volumes:
+      - ../tls-certs:/tls:ro
+
+volumes:
+  redis-master-data:
+  redis-replica-16385-data:
+  redis-replica-16386-data:

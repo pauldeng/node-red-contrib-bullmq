@@ -28,13 +28,25 @@ test("Docker deployment fixtures cover standalone, cluster, and sentinel Redis",
     "test/deployments/single-noauth/compose.yml",
     "test/deployments/single-auth/compose.yml",
     "test/deployments/single-auth/redis.conf",
+    "test/deployments/single-tls/compose.yml",
+    "test/deployments/single-tls/redis.conf",
     "test/deployments/cluster-auth/compose.yml",
     "test/deployments/cluster-auth/redis-7000.conf",
     "test/deployments/cluster-auth/redis-7001.conf",
+    "test/deployments/cluster-tls/compose.yml",
+    "test/deployments/cluster-tls/redis-17002.conf",
+    "test/deployments/cluster-tls/redis-17003.conf",
     "test/deployments/sentinel-auth/compose.yml",
     "test/deployments/sentinel-auth/redis-master.conf",
     "test/deployments/sentinel-auth/redis-replica-6380.conf",
     "test/deployments/sentinel-auth/redis-replica-6381.conf",
+    "test/deployments/sentinel-tls/compose.yml",
+    "test/deployments/sentinel-tls/redis-master.conf",
+    "test/deployments/sentinel-tls/redis-replica-16385.conf",
+    "test/deployments/sentinel-tls/redis-replica-16386.conf",
+    "test/deployments/tls-certs/ca.crt",
+    "test/deployments/tls-certs/redis.crt",
+    "test/deployments/tls-certs/redis.key",
   ];
 
   for (const file of requiredFiles) {
@@ -42,18 +54,26 @@ test("Docker deployment fixtures cover standalone, cluster, and sentinel Redis",
   }
 
   assert.match(read("test/deployments/cluster-auth/compose.yml"), /CLUSTER/);
+  assert.match(read("test/deployments/cluster-tls/compose.yml"), /--tls/);
   assert.match(read("test/deployments/sentinel-auth/compose.yml"), /sentinel/i);
+  assert.match(read("test/deployments/sentinel-tls/compose.yml"), /tls-port/);
 });
 
 test("Docker Redis fixtures use BullMQ production-safe memory policy", () => {
   for (const file of [
     "test/deployments/single-noauth/compose.yml",
     "test/deployments/single-auth/redis.conf",
+    "test/deployments/single-tls/redis.conf",
     "test/deployments/cluster-auth/redis-7000.conf",
     "test/deployments/cluster-auth/redis-7001.conf",
+    "test/deployments/cluster-tls/redis-17002.conf",
+    "test/deployments/cluster-tls/redis-17003.conf",
     "test/deployments/sentinel-auth/redis-master.conf",
     "test/deployments/sentinel-auth/redis-replica-6380.conf",
     "test/deployments/sentinel-auth/redis-replica-6381.conf",
+    "test/deployments/sentinel-tls/redis-master.conf",
+    "test/deployments/sentinel-tls/redis-replica-16385.conf",
+    "test/deployments/sentinel-tls/redis-replica-16386.conf",
   ]) {
     assert.match(read(file), /maxmemory-policy[\s-]+noeviction/);
   }
@@ -63,13 +83,21 @@ test("Docker deployment fixtures avoid common local Redis host ports", () => {
   const fixtureText = [
     "test/deployments/single-noauth/compose.yml",
     "test/deployments/single-auth/compose.yml",
+    "test/deployments/single-tls/compose.yml",
     "test/deployments/cluster-auth/compose.yml",
     "test/deployments/cluster-auth/redis-7000.conf",
     "test/deployments/cluster-auth/redis-7001.conf",
+    "test/deployments/cluster-tls/compose.yml",
+    "test/deployments/cluster-tls/redis-17002.conf",
+    "test/deployments/cluster-tls/redis-17003.conf",
     "test/deployments/sentinel-auth/compose.yml",
     "test/deployments/sentinel-auth/redis-master.conf",
     "test/deployments/sentinel-auth/redis-replica-6380.conf",
     "test/deployments/sentinel-auth/redis-replica-6381.conf",
+    "test/deployments/sentinel-tls/compose.yml",
+    "test/deployments/sentinel-tls/redis-master.conf",
+    "test/deployments/sentinel-tls/redis-replica-16385.conf",
+    "test/deployments/sentinel-tls/redis-replica-16386.conf",
   ]
     .map(read)
     .join("\n");
@@ -87,8 +115,11 @@ test("Docker runner keeps AWS MemoryDB optional and environment-only", () => {
   for (const name of [
     "single-noauth",
     "single-auth",
+    "single-tls",
     "cluster-auth",
+    "cluster-tls",
     "sentinel-auth",
+    "sentinel-tls",
   ]) {
     assert.match(runner, new RegExp(name));
   }

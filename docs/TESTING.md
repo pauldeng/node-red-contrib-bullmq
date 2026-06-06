@@ -60,10 +60,13 @@ Current executable fixtures:
 
 - `single-noauth`: standalone Redis without auth or TLS
 - `single-auth`: standalone Redis with ACL auth
+- `single-tls`: standalone Redis with TLS
 - `cluster-auth`: two-node Redis Cluster with ACL auth and BullMQ `{bull}` prefix coverage
+- `cluster-tls`: two-node Redis Cluster with TLS and BullMQ `{bull}` prefix coverage
 - `sentinel-auth`: Redis master, two replicas, and three Sentinels with data-node ACL auth
+- `sentinel-tls`: Redis master, two replicas, and three TLS-enabled Sentinels
 
-The shared deployment test proves Node-RED load, connection, add/run delivery, required `basecasts` scheduler creation/removal, and absolute scheduler minute/second metadata. TLS-specific Docker fixtures should be added before release if certificate-backed Redis containers are available; TLS option construction is covered by unit tests.
+The shared deployment test proves Node-RED load, connection, add/run delivery, required `basecasts` scheduler creation/removal, and absolute scheduler minute/second metadata. TLS fixtures use local self-signed test certificates and disable certificate verification for those Docker-only deployments. MemoryDB remains the certificate-verified TLS deployment path.
 
 ## AWS MemoryDB
 

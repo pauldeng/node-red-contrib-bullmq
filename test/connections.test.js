@@ -89,6 +89,7 @@ test("builds Sentinel descriptors with separate Sentinel auth and TLS", () => {
     sentinelUsername: "sentinel-user",
     sentinelPassword: "sentinel-secret",
     tls: true,
+    tlsRejectUnauthorized: false,
     sentinelTls: true,
   });
 
@@ -104,6 +105,12 @@ test("builds Sentinel descriptors with separate Sentinel auth and TLS", () => {
   assert.equal(descriptor.options.sentinelUsername, "sentinel-user");
   assert.equal(descriptor.options.sentinelPassword, "sentinel-secret");
   assert.equal(descriptor.options.enableTLSForSentinelMode, true);
+  assert.deepEqual(descriptor.options.tls, {
+    rejectUnauthorized: false,
+  });
+  assert.deepEqual(descriptor.options.sentinelTLS, {
+    rejectUnauthorized: false,
+  });
   assert.equal(descriptor.options.maxRetriesPerRequest, null);
 });
 

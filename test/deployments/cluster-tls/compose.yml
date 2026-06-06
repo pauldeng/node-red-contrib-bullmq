@@ -1,0 +1,44 @@
+services:
+  redis-17002:
+    image: ${REDIS_TOPOLOGY_IMAGE:-redis:7.2-alpine}
+    network_mode: host
+    command:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis-17002.conf:/usr/local/etc/redis/redis.conf:ro
+      - ../tls-certs:/tls:ro
+      - redis-17002-data:/data
+
+  redis-17003:
+    image: ${REDIS_TOPOLOGY_IMAGE:-redis:7.2-alpine}
+    network_mode: host
+    command:
+      - redis-server
+      - /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis-17003.conf:/usr/local/etc/redis/redis.conf:ro
+      - ../tls-certs:/tls:ro
+      - redis-17003-data:/data
+
+  cluster-init:
+    image: ${REDIS_TOPOLOGY_IMAGE:-redis:7.2-alpine}
+    network_mode: host
+    depends_on:
+      - redis-17002
+      - redis-17003
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        until redis-cli --tls --insecure -h 127.0.0.1 -p 17002 PING >/dev/null 2>&1; do sleep 0.2; done
+        until redis-cli --tls --insecure -h 127.0.0.1 -p 17003 PING >/dev/null 2>&1; do sleep 0.2; done
+        redis-cli --tls --insecure -h 127.0.0.1 -p 17002 CLUSTER MEET 127.0.0.1 17003 >/dev/null 2>&1 || true
+        redis-cli --tls --insecure -h 127.0.0.1 -p 17002 CLUSTER ADDSLOTSRANGE 0 8191 >/dev/null 2>&1 || true
+        redis-cli --tls --insecure -h 127.0.0.1 -p 17003 CLUSTER ADDSLOTSRANGE 8192 16383 >/dev/null 2>&1 || true
+        until redis-cli --tls --insecure -h 127.0.0.1 -p 17002 CLUSTER INFO | grep -q "cluster_state:ok"; do sleep 0.5; done
+
+volumes:
+  redis-17002-data:
+  redis-17003-data:
