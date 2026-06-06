@@ -374,7 +374,7 @@ return msg;</pre>
     <li><code>fail</code>: Fails the active job. Use <code>msg.error</code> or <code>msg.payload</code> to describe the error.</li>
     <li><code>failUnrecoverable</code>: Fails the active job with a BullMQ unrecoverable error so retry attempts are not used.</li>
     <li><code>progress</code>: Updates job progress from <code>msg.progress</code> or <code>msg.payload</code>.</li>
-    <li><code>rateLimit</code>: Applies a worker rate limit delay. Use <code>msg.payload</code> or <code>msg.duration</code> as milliseconds.</li>
+    <li><code>rateLimit</code>: Applies a worker rate limit delay. Use <code>msg.duration</code> as milliseconds.</li>
     <li><code>removeDeduplicationKey</code>: Removes the active job deduplication key.</li>
     <li><code>getChildrenValues</code>: Reads completed child return values for a flow parent job.</li>
     <li><code>getFailedChildrenValues</code>: Reads failed child values for a flow parent job.</li>
