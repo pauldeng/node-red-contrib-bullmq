@@ -39,10 +39,8 @@
   },
   "devDependencies": {
     "@playwright/test": "1.60.0",
-    "mocha": "11.7.6",
     "node-red": "4.1.11",
     "node-red-node-test-helper": "^0.3.6",
-    "prettier": "3.8.3",
-    "sinon": "22.0.0"
+    "prettier": "3.8.3"
   }
 }

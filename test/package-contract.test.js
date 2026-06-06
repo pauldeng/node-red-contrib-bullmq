@@ -16,10 +16,12 @@ test("package metadata targets BullMQ, Node.js 24+, and Node-RED 4.1.x", () => {
 
   assert.equal(packageJson.devDependencies?.["@playwright/test"], "1.60.0");
   assert.equal(packageJson.devDependencies?.["node-red"], "4.1.11");
-  assert.equal(packageJson.devDependencies?.mocha, "11.7.6");
   assert.equal(packageJson.devDependencies?.prettier, "3.8.3");
-  assert.equal(packageJson.devDependencies?.sinon, "22.0.0");
   assert.ok(packageJson.devDependencies?.["node-red-node-test-helper"]);
+
+  // Tests run on node:test; mocha and sinon are not used directly.
+  assert.equal(packageJson.devDependencies?.mocha, undefined);
+  assert.equal(packageJson.devDependencies?.sinon, undefined);
 });
 
 test("runtime code no longer imports bull or sprintf-js", () => {
