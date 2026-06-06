@@ -9,7 +9,10 @@ const {
 } = require("bullmq");
 const IORedis = require("ioredis");
 
-const { AcknowledgementRegistry } = require("./lib/acknowledgements");
+const {
+  AcknowledgementRegistry,
+  parseAckTimeoutMs,
+} = require("./lib/acknowledgements");
 const { dispatchCommand } = require("./lib/commands");
 const {
   buildBullMQOptions,
@@ -281,7 +284,7 @@ module.exports = function registerBullMQNodes(RED) {
 
     const processor = async (job) => {
       if (node.completionMode === "manual") {
-        const timeoutMs = Number(n.ackTimeout || 300000);
+        const timeoutMs = parseAckTimeoutMs(n.ackTimeout);
         const acknowledgement = acknowledgements.create(
           {
             job,

@@ -2,7 +2,10 @@ const assert = require("node:assert/strict");
 const { setTimeout: sleep } = require("node:timers/promises");
 const test = require("node:test");
 
-const { AcknowledgementRegistry } = require("../lib/acknowledgements");
+const {
+  AcknowledgementRegistry,
+  parseAckTimeoutMs,
+} = require("../lib/acknowledgements");
 
 function context(overrides = {}) {
   return {
@@ -95,6 +98,46 @@ test("rejectByRunNode settles and drops every entry for that run node", async ()
   other.entry.complete("ok");
   await otherWait;
   assert.equal(registry.entries.size, 0);
+});
+
+test("parseAckTimeoutMs defaults empty, non-numeric, and negative values", () => {
+  assert.equal(parseAckTimeoutMs(undefined), 300000);
+  assert.equal(parseAckTimeoutMs(null), 300000);
+  assert.equal(parseAckTimeoutMs(""), 300000);
+  assert.equal(parseAckTimeoutMs("abc"), 300000);
+  assert.equal(parseAckTimeoutMs(-5), 300000);
+  assert.equal(parseAckTimeoutMs(undefined, 1000), 1000);
+});
+
+test("parseAckTimeoutMs keeps 0 so the timeout can be disabled", () => {
+  assert.equal(parseAckTimeoutMs(0), 0);
+  assert.equal(parseAckTimeoutMs("0"), 0);
+});
+
+test("parseAckTimeoutMs accepts positive millisecond values", () => {
+  assert.equal(parseAckTimeoutMs(5000), 5000);
+  assert.equal(parseAckTimeoutMs("60000"), 60000);
+});
+
+test("an ack timeout of 0 never settles on its own", async () => {
+  const registry = new AcknowledgementRegistry();
+  const { entry } = registry.create(context(), parseAckTimeoutMs(0));
+
+  let settledValue;
+  let settled = false;
+  const waiter = (async () => {
+    settledValue = await entry.wait();
+    settled = true;
+  })();
+
+  await sleep(30);
+  assert.equal(settled, false, "a 0 timeout must wait indefinitely");
+  assert.equal(registry.entries.size, 1);
+
+  // Complete it so the test leaves no pending waiter.
+  entry.complete("done");
+  await waiter;
+  assert.equal(settledValue, "done");
 });
 
 test("create returns unique ack ids", () => {

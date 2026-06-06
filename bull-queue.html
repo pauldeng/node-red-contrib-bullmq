@@ -296,7 +296,7 @@ return msg;</pre>
     <li><b>Name</b>: Optional label shown in the Node-RED workspace.</li>
     <li><b>Queue</b>: Queue config node used by the worker.</li>
     <li><b>Completion</b>: <code>Immediate</code> completes the BullMQ job after the message is emitted. <code>Manual acknowledgement</code> keeps the job active until a downstream <code>bull job</code> node completes, fails, or updates it.</li>
-    <li><b>Ack Timeout</b>: Maximum time in milliseconds to wait for manual acknowledgement before the node fails the active job.</li>
+    <li><b>Ack Timeout</b>: Maximum time in milliseconds to wait for manual acknowledgement before the node fails the active job. Set to <code>0</code> to wait indefinitely.</li>
     <li><b>Concurrency</b>: Number of jobs this worker can process at the same time.</li>
     <li><b>Limiter Max</b>: Optional worker-side rate limit count.</li>
     <li><b>Limiter Duration</b>: Optional worker-side rate limit window in milliseconds. Set with <b>Limiter Max</b>.</li>

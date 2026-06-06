@@ -42,7 +42,7 @@ Output message:
 Completion modes:
 
 - `immediate`: complete after sending the message.
-- `manual`: wait for downstream `bull job` acknowledgement.
+- `manual`: wait for downstream `bull job` acknowledgement. Fails the job after the ack timeout; set the timeout to `0` to wait indefinitely.
 
 ## `bull job`
 
