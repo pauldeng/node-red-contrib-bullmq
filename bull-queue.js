@@ -547,6 +547,18 @@ module.exports = function registerBullMQNodes(RED) {
 
     node.bullConn.register(node);
     node.flowProducer = node.bullConn.createFlowProducer();
+    attachErrorListener(node.flowProducer, node, "BullMQ flow");
+    async function updateReadyStatus() {
+      try {
+        node.status({ fill: "yellow", shape: "ring", text: "connecting" });
+        await node.flowProducer.waitUntilReady();
+        node.status({ fill: "green", shape: "dot", text: "connected" });
+      } catch (err) {
+        node.status({ fill: "red", shape: "ring", text: "connection error" });
+        node.error(err);
+      }
+    }
+    updateReadyStatus();
 
     node.on("input", async function onInput(msg, send, done) {
       try {
