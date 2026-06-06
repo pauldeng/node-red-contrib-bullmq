@@ -41,7 +41,7 @@ Secrets are read from Node-RED credentials first, with legacy plain fields accep
 - Immediate mode sends a Node-RED message and completes the job immediately.
 - Manual mode creates an opaque `msg.bull.ackId` and waits for a downstream `bull job` node.
 
-The in-process acknowledgement registry stores live jobs and promise settlement functions. Lock tokens are never sent in messages.
+The in-process acknowledgement registry (`lib/acknowledgements.js`) stores live jobs and promise settlement functions. Each entry self-removes when it settles (complete, fail, timeout, or run-node close), so the registry does not accumulate finished jobs. Lock tokens are never sent in messages.
 
 ## Events And Flows
 

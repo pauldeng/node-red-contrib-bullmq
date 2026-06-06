@@ -7,6 +7,7 @@
 - `lib/scheduler.js`: legacy repeat-cron to BullMQ Job Scheduler normalization.
 - `lib/commands.js`: `bull cmd` dispatch.
 - `lib/serialization.js`: message-safe BullMQ serialization.
+- `lib/acknowledgements.js`: manual-acknowledgement registry for `bull run`/`bull job`. Entries self-remove on settle.
 
 ## Editor
 
@@ -19,6 +20,7 @@
 - `test/connections.test.js`: Redis topology option normalization.
 - `test/scheduler.test.js`: repeat scheduler compatibility.
 - `test/commands.test.js`: command dispatch behavior.
+- `test/acknowledgements.test.js`: manual-acknowledgement registry lifecycle and leak prevention.
 - `test/node-red-registration.test.js`: Node-RED node type registration.
 - `test/editor-contract.test.js`: static editor surface.
 - `test/docs-contract.test.js`: required docs and examples.
