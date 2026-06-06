@@ -53,6 +53,44 @@ test("examples include the required basecasts scheduled job flow", () => {
   assert.match(example, /"type"\s*:\s*"bull flow"/);
 });
 
+test("examples include simple BullMQ feature import flows", () => {
+  const fileText = read("examples/bullmq_features.json");
+  const example = JSON.parse(fileText);
+  const readme = read("examples/README.md");
+  const nodeText = JSON.stringify(example);
+  const functionText = example
+    .filter((node) => node.type === "function")
+    .map((node) => node.func)
+    .join("\n");
+  const searchableText = `${nodeText}\n${functionText}`;
+
+  for (const label of [
+    "delay: send later",
+    "priority: high priority",
+    "dedupe: same job once",
+    "rate limit: 2 per second",
+    "scheduler: every minute",
+    "manual ack worker",
+    "flow: parent plus child",
+  ]) {
+    assert.match(nodeText, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(readme, new RegExp(label.split(":")[0], "i"));
+  }
+
+  for (const text of [
+    "delay: 10000",
+    "priority: 1",
+    "deduplication: { id: msg.payload }",
+    "msg.cmd = \"setGlobalRateLimit\"",
+    "repeat: { pattern: \"*/1 * * * *\" }",
+    "\"bull events\"",
+    "\"bull job\"",
+    "\"bull flow\"",
+  ]) {
+    assert.match(searchableText, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
 test("testing docs describe the executable Docker deployment matrix", () => {
   const testing = read("docs/TESTING.md");
   for (const text of [
