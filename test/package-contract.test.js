@@ -33,3 +33,22 @@ test("runtime code no longer imports bull or sprintf-js", () => {
   assert.doesNotMatch(runtime, /require\(["']bull["']\)/);
   assert.doesNotMatch(runtime, /require\(["']sprintf-js["']\)/);
 });
+
+test("published files allowlist ships runtime assets and excludes tests and secrets", () => {
+  const files = packageJson.files;
+  assert.ok(Array.isArray(files), "package.json must declare a files allowlist");
+
+  for (const entry of ["bull-queue.js", "bull-queue.html", "lib/", "icons/"]) {
+    assert.ok(files.includes(entry), `files must include ${entry}`);
+  }
+
+  // Never publish tests, fixtures (incl. TLS keys), runner scripts, or local
+  // editor/agent config.
+  for (const entry of files) {
+    assert.doesNotMatch(
+      entry,
+      /^(test|scripts|\.claude|docs\/superpowers)/,
+      `files must not publish ${entry}`
+    );
+  }
+});
