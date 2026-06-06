@@ -141,10 +141,13 @@ module.exports = function registerBullMQNodes(RED) {
       done();
     };
 
-    node.createConnection = function createConnection(role) {
+    // owner is the node whose status should reflect connection errors. It
+    // defaults to the config node (shared producer/queue), but runtime nodes
+    // pass themselves so errors surface on their own visible status.
+    node.createConnection = function createConnection(role, owner = node) {
       const descriptor = buildRedisDescriptor(node.config, role);
       const connection = createRedisConnection(descriptor, IORedis);
-      attachErrorListener(connection, node, `Redis ${role}`);
+      attachErrorListener(connection, owner, `Redis ${role}`);
       node.resources.add(connection);
       return connection;
     };
@@ -161,35 +164,34 @@ module.exports = function registerBullMQNodes(RED) {
       return node.queue;
     };
 
-    node.createWorker = function createWorker(processor, options) {
-      const connection = node.createConnection("worker");
+    // Runtime nodes pass themselves as owner and attach their own resource
+    // error listener, so worker/events/flow errors surface on the visible
+    // runtime node rather than the hidden config node.
+    node.createWorker = function createWorker(processor, options, owner = node) {
+      const connection = node.createConnection("worker", owner);
       const worker = new Worker(node.config.queueName, processor, {
         ...buildBullMQOptions(node.config, connection),
         ...options,
       });
-      attachErrorListener(worker, node, "BullMQ worker");
       node.resources.add(worker);
       return worker;
     };
 
-    node.createQueueEvents = function createQueueEvents() {
-      const connection = node.createConnection("events");
+    node.createQueueEvents = function createQueueEvents(owner = node) {
+      const connection = node.createConnection("events", owner);
       const queueEvents = new QueueEvents(
         node.config.queueName,
         buildBullMQOptions(node.config, connection)
       );
-      attachErrorListener(queueEvents, node, "BullMQ events");
       node.resources.add(queueEvents);
       return queueEvents;
     };
 
-    node.createFlowProducer = function createFlowProducer() {
-      const connection = node.createConnection("producer");
+    node.createFlowProducer = function createFlowProducer(owner = node) {
+      const connection = node.createConnection("producer", owner);
       const flowProducer = new FlowProducer(
         buildBullMQOptions(node.config, connection)
       );
-      // The bull flow node attaches its own error listener so flow errors
-      // surface on that node's status rather than the hidden config node.
       node.resources.add(flowProducer);
       return flowProducer;
     };
@@ -303,7 +305,8 @@ module.exports = function registerBullMQNodes(RED) {
       return msg.payload;
     };
 
-    node.worker = node.bullQueue.createWorker(processor, workerOptions);
+    node.worker = node.bullQueue.createWorker(processor, workerOptions, node);
+    attachErrorListener(node.worker, node, "BullMQ worker");
     node.worker.on("ready", () =>
       node.status({ fill: "green", shape: "dot", text: "connected" })
     );
@@ -419,7 +422,8 @@ module.exports = function registerBullMQNodes(RED) {
     }
 
     node.bullConn.register(node);
-    node.queueEvents = node.bullConn.createQueueEvents();
+    node.queueEvents = node.bullConn.createQueueEvents(node);
+    attachErrorListener(node.queueEvents, node, "BullMQ events");
     const events = parseEventFilter(n.events);
     for (const event of events) {
       node.queueEvents.on(event, (payload, eventId) => {
@@ -468,7 +472,7 @@ module.exports = function registerBullMQNodes(RED) {
     }
 
     node.bullConn.register(node);
-    node.flowProducer = node.bullConn.createFlowProducer();
+    node.flowProducer = node.bullConn.createFlowProducer(node);
     attachErrorListener(node.flowProducer, node, "BullMQ flow");
     async function updateReadyStatus() {
       try {

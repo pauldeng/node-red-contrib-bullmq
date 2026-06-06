@@ -181,3 +181,116 @@ test("config node createFlowProducer does not attach its own error listener", as
     await flowProducer.close().catch(() => {});
   }
 });
+
+test("bull run reports worker errors on its own node status", () => {
+  const statuses = [];
+  const errors = [];
+  const worker = new EventEmitter();
+  worker.close = async function close() {};
+  const queueConfig = {
+    config: { queueName: "runcasts" },
+    register(node) {
+      node.status({ fill: "grey", shape: "ring", text: "configured" });
+    },
+    createWorker() {
+      return worker;
+    },
+    deregister(node, done) {
+      done();
+    },
+  };
+  const RED = createRED({
+    getNode() {
+      return queueConfig;
+    },
+    status(status) {
+      statuses.push(status);
+    },
+    error(err) {
+      errors.push(err);
+    },
+  });
+
+  registerBullMQNodes(RED);
+  const RunNode = RED.registered.get("bull run").constructor;
+  RunNode.call({}, { queue: "queue", completionMode: "immediate" });
+
+  assert.equal(worker.listenerCount("error"), 1);
+  worker.emit("error", new Error("worker connection lost"));
+
+  assert.deepEqual(statuses.at(-1), {
+    fill: "red",
+    shape: "ring",
+    text: "BullMQ worker: error",
+  });
+  assert.equal(errors.length, 1);
+});
+
+test("bull events reports QueueEvents errors on its own node status", async () => {
+  const statuses = [];
+  const errors = [];
+  const queueEvents = new EventEmitter();
+  queueEvents.waitUntilReady = async function waitUntilReady() {};
+  queueEvents.close = async function close() {};
+  const queueConfig = {
+    config: { queueName: "eventcasts" },
+    register(node) {
+      node.status({ fill: "grey", shape: "ring", text: "configured" });
+    },
+    createQueueEvents() {
+      return queueEvents;
+    },
+    deregister(node, done) {
+      done();
+    },
+  };
+  const RED = createRED({
+    getNode() {
+      return queueConfig;
+    },
+    status(status) {
+      statuses.push(status);
+    },
+    error(err) {
+      errors.push(err);
+    },
+  });
+
+  registerBullMQNodes(RED);
+  const EventsNode = RED.registered.get("bull events").constructor;
+  EventsNode.call({}, { queue: "queue" });
+  await tick();
+
+  assert.equal(queueEvents.listenerCount("error"), 1);
+  queueEvents.emit("error", new Error("events connection lost"));
+
+  assert.deepEqual(statuses.at(-1), {
+    fill: "red",
+    shape: "ring",
+    text: "BullMQ events: error",
+  });
+  assert.equal(errors.length, 1);
+});
+
+test("config node createWorker does not attach its own error listener", async () => {
+  const RED = createRED();
+  registerBullMQNodes(RED);
+  const Server = RED.registered.get("bull-queue-server").constructor;
+
+  const node = {};
+  Server.call(node, { name: "runcasts" });
+  node.createConnection = function createConnection() {
+    const connection = new EventEmitter();
+    connection.options = {};
+    connection.status = "ready";
+    return connection;
+  };
+
+  // autorun:false keeps the worker from starting its Redis polling loop.
+  const worker = node.createWorker(async () => {}, { autorun: false });
+  try {
+    assert.equal(worker.listenerCount("error"), 0);
+  } finally {
+    await worker.close().catch(() => {});
+  }
+});
