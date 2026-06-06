@@ -188,7 +188,8 @@ module.exports = function registerBullMQNodes(RED) {
       const flowProducer = new FlowProducer(
         buildBullMQOptions(node.config, connection)
       );
-      attachErrorListener(flowProducer, node, "BullMQ flow");
+      // The bull flow node attaches its own error listener so flow errors
+      // surface on that node's status rather than the hidden config node.
       node.resources.add(flowProducer);
       return flowProducer;
     };

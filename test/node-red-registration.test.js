@@ -15,7 +15,7 @@ function createRED(options = {}) {
         EventEmitter.call(node);
         node.id = "node-under-test";
         node.status = options.status || (() => {});
-        node.error = () => {};
+        node.error = options.error || (() => {});
         node.send = () => {};
       },
       getNode() {
@@ -111,6 +111,7 @@ test("bull flow reports Redis connection status when FlowProducer is ready", asy
 
 test("bull flow reports FlowProducer errors on its own node status", async () => {
   const statuses = [];
+  const errors = [];
   const flowProducer = new EventEmitter();
   flowProducer.waitUntilReady = async function waitUntilReady() {};
   flowProducer.close = async function close() {};
@@ -133,12 +134,19 @@ test("bull flow reports FlowProducer errors on its own node status", async () =>
     status(status) {
       statuses.push(status);
     },
+    error(err) {
+      errors.push(err);
+    },
   });
 
   registerBullMQNodes(RED);
   const FlowNode = RED.registered.get("bull flow").constructor;
   FlowNode.call({}, { queue: "queue" });
   await tick();
+
+  // Exactly one error listener: the flow node owns error reporting, and the
+  // config node's createFlowProducer must not attach a duplicate listener.
+  assert.equal(flowProducer.listenerCount("error"), 1);
 
   flowProducer.emit("error", new Error("connection lost"));
 
@@ -147,4 +155,29 @@ test("bull flow reports FlowProducer errors on its own node status", async () =>
     shape: "ring",
     text: "BullMQ flow: error",
   });
+  assert.equal(errors.length, 1, "a single error must be reported once");
+});
+
+test("config node createFlowProducer does not attach its own error listener", async () => {
+  const RED = createRED();
+  registerBullMQNodes(RED);
+  const Server = RED.registered.get("bull-queue-server").constructor;
+
+  const node = {};
+  Server.call(node, { name: "flowcasts" });
+  // Avoid opening a real Redis connection.
+  node.createConnection = function createConnection() {
+    const connection = new EventEmitter();
+    connection.options = {};
+    return connection;
+  };
+
+  const flowProducer = node.createFlowProducer();
+  try {
+    // The flow node owns error reporting; the shared factory must not add a
+    // second listener that would double-report flow errors.
+    assert.equal(flowProducer.listenerCount("error"), 0);
+  } finally {
+    await flowProducer.close().catch(() => {});
+  }
 });
