@@ -137,9 +137,36 @@
 </script>
 
 <script type="text/x-red" data-help-name="bull-queue-server">
-  <p>Configures the BullMQ queue name and Redis deployment used by the BullMQ nodes.</p>
-  <p>Standalone, Redis Cluster, AWS MemoryDB, and Sentinel deployments are supported. AWS MemoryDB should use Cluster deployment with TLS enabled.</p>
-  <p>For Redis Cluster and MemoryDB, use a shared BullMQ prefix such as <code>{bull}</code> so BullMQ keys stay in one hash slot for atomic operations.</p>
+  <p>Configures the BullMQ queue name and Redis connection shared by the BullMQ nodes.</p>
+  <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.Queue.html" target="_blank" rel="noopener noreferrer">Queue</a> and <a href="https://api.docs.bullmq.io/interfaces/v5.QueueOptions.html" target="_blank" rel="noopener noreferrer">QueueOptions</a>.</p>
+
+  <h3>Options</h3>
+  <ul>
+    <li><b>Queue</b>: BullMQ queue name. All producer, worker, event, and flow nodes that select this config use this queue name unless a BullMQ flow child specifies another <code>queueName</code>.</li>
+    <li><b>Deployment</b>: Redis topology. Use <code>Standalone Redis</code> for one Redis endpoint, <code>Redis Cluster / AWS MemoryDB</code> for cluster-compatible endpoints, or <code>Redis Sentinel</code> for Sentinel discovery.</li>
+    <li><b>Host</b>: Standalone Redis host name or IP address.</li>
+    <li><b>Port</b>: Standalone Redis port. The default Redis port is <code>6379</code>.</li>
+    <li><b>Cluster Nodes</b>: Comma or newline separated cluster seed nodes such as <code>redis-a:6379, redis-b:6379</code>. AWS MemoryDB cluster configuration endpoints are entered here.</li>
+    <li><b>Sentinels</b>: Comma or newline separated Sentinel endpoints such as <code>sentinel-a:26379, sentinel-b:26379</code>.</li>
+    <li><b>Master</b>: Sentinel master name, for example <code>mymaster</code>.</li>
+    <li><b>Database</b>: Redis database number for standalone or Sentinel data connections. Cluster and MemoryDB deployments use Redis database <code>0</code>.</li>
+    <li><b>Username</b>: Redis ACL username for data connections. Leave empty for Redis servers that only use a password.</li>
+    <li><b>Password</b>: Redis password for data connections. Stored as a Node-RED credential.</li>
+    <li><b>Sentinel User</b>: Redis ACL username for Sentinel discovery connections when Sentinels require separate credentials.</li>
+    <li><b>Sentinel Pass</b>: Password for Sentinel discovery connections. Stored as a Node-RED credential.</li>
+    <li><b>TLS</b>: Enables TLS for Redis data connections. Use this for AWS MemoryDB and any Redis deployment that requires encrypted data connections.</li>
+    <li><b>Sentinel TLS</b>: Enables TLS for Sentinel discovery connections.</li>
+    <li><b>Verify TLS</b>: Rejects certificates that cannot be verified. Keep enabled in production unless you intentionally use a private test certificate.</li>
+    <li><b>TLS Server Name</b>: Optional server name used for certificate validation when it differs from the host value.</li>
+    <li><b>CA</b>: PEM certificate authority text for validating private Redis certificates. Stored as a Node-RED credential.</li>
+    <li><b>Client Cert</b>: PEM client certificate for mutual TLS deployments. Stored as a Node-RED credential.</li>
+    <li><b>Client Key</b>: PEM client private key for mutual TLS deployments. Stored as a Node-RED credential.</li>
+    <li><b>Prefix</b>: BullMQ key prefix. For Redis Cluster and MemoryDB, use a hash tag such as <code>{bull}</code> so BullMQ keys stay in one hash slot for atomic operations.</li>
+  </ul>
+
+  <h3>Example</h3>
+  <p>For local Redis, set <b>Queue</b> to <code>email-jobs</code>, <b>Deployment</b> to <code>Standalone Redis</code>, <b>Host</b> to <code>localhost</code>, and <b>Port</b> to <code>6379</code>.</p>
+  <p>For AWS MemoryDB, set <b>Deployment</b> to <code>Redis Cluster / AWS MemoryDB</code>, enter the cluster endpoint in <b>Cluster Nodes</b>, enable <b>TLS</b>, keep <b>Verify TLS</b> enabled, and use <code>{bull}</code> as <b>Prefix</b>.</p>
   <p>Redis should use <code>maxmemory-policy=noeviction</code>. Bull v4 Redis queue data is not automatically migrated to BullMQ.</p>
 </script>
 
@@ -155,9 +182,57 @@
 </script>
 
 <script type="text/x-red" data-help-name="bull cmd">
-  <p>Executes BullMQ producer and queue-administration commands from <code>msg.cmd</code>.</p>
-  <p><code>add</code> uses <code>msg.jobName</code>, <code>msg.jobData</code> or <code>msg.payload</code>, and <code>msg.jobopts</code>. Legacy <code>msg.jobopts.repeat.cron</code> is translated to a BullMQ Job Scheduler.</p>
-  <p>Repeat compatibility commands are mapped to Job Scheduler APIs: <code>count</code>, <code>getRepeatableJobs</code>, <code>getRepeatableJobByKey</code>, and <code>removeRepeatableByKey</code>.</p>
+  <p>Executes BullMQ producer and queue-administration commands from an input message.</p>
+  <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.Queue.html" target="_blank" rel="noopener noreferrer">Queue</a>, <a href="https://api.docs.bullmq.io/classes/v5.Queue.html#add" target="_blank" rel="noopener noreferrer">Queue.add</a>, <a href="https://api.docs.bullmq.io/types/v5.JobsOptions.html" target="_blank" rel="noopener noreferrer">JobsOptions</a>, <a href="https://api.docs.bullmq.io/types/v5.DeduplicationOptions.html" target="_blank" rel="noopener noreferrer">DeduplicationOptions</a>, <a href="https://api.docs.bullmq.io/classes/v5.Queue.html#setglobalratelimit" target="_blank" rel="noopener noreferrer">Queue.setGlobalRateLimit</a>, and <a href="https://api.docs.bullmq.io/classes/v5.Queue.html#upsertjobscheduler" target="_blank" rel="noopener noreferrer">Queue.upsertJobScheduler</a>.</p>
+
+  <h3>Options</h3>
+  <ul>
+    <li><b>Name</b>: Optional label shown in the Node-RED workspace.</li>
+    <li><b>Queue</b>: Queue config node used to create the BullMQ <code>Queue</code>.</li>
+  </ul>
+
+  <h3>Input message</h3>
+  <ul>
+    <li><code>msg.cmd</code>: Command name. Defaults to <code>add</code>. Common commands include <code>add</code>, <code>addBulk</code>, <code>getJob</code>, <code>getJobs</code>, <code>removeJob</code>, <code>retryJob</code>, <code>getDelayed</code>, <code>promoteJob</code>, <code>getPrioritized</code>, <code>changePriority</code>, <code>setGlobalRateLimit</code>, <code>removeGlobalRateLimit</code>, <code>upsertJobScheduler</code>, and <code>removeJobScheduler</code>.</li>
+    <li><code>msg.payload</code>: Job data for <code>add</code> when <code>msg.jobData</code> is not set. For some commands it carries command parameters, such as <code>{ "max": 2, "duration": 1000 }</code> for <code>setGlobalRateLimit</code>.</li>
+    <li><code>msg.jobName</code>: BullMQ job name for <code>add</code>. Defaults to <code>default</code>.</li>
+    <li><code>msg.jobData</code>: Full job data object for <code>add</code>. When set, it takes precedence over <code>msg.payload</code>.</li>
+    <li><code>msg.jobopts</code>: BullMQ job options for <code>add</code>, including <code>delay</code>, <code>priority</code>, <code>deduplication</code>, <code>attempts</code>, <code>backoff</code>, <code>removeOnComplete</code>, and <code>repeat</code>.</li>
+  </ul>
+
+  <h3>Examples</h3>
+  <p>Add a delayed, prioritized job:</p>
+  <pre>msg.cmd = "add";
+msg.jobName = "email";
+msg.payload = { to: "user@example.com" };
+msg.jobopts = {
+  delay: 10000,
+  priority: 1,
+  removeOnComplete: true
+};
+return msg;</pre>
+  <p>Add one job per deduplication id:</p>
+  <pre>msg.cmd = "add";
+msg.jobName = "report";
+msg.payload = { customerId: "customer-42" };
+msg.jobopts = {
+  deduplication: { id: "customer-42-report" }
+};
+return msg;</pre>
+  <p>Set a global rate limit of two jobs per second:</p>
+  <pre>msg.cmd = "setGlobalRateLimit";
+msg.payload = { max: 2, duration: 1000 };
+return msg;</pre>
+  <p>Add or update a scheduler every minute:</p>
+  <pre>msg.cmd = "add";
+msg.jobName = "heartbeat";
+msg.payload = "scheduled heartbeat";
+msg.jobopts = {
+  jobId: "heartbeat-every-minute",
+  repeat: { pattern: "*/1 * * * *" }
+};
+return msg;</pre>
+  <p>Legacy <code>msg.jobopts.repeat.cron</code> is translated to a BullMQ Job Scheduler. Legacy repeat lookup and removal commands use exact scheduler ids.</p>
 </script>
 
 <script type="text/javascript">
@@ -214,8 +289,29 @@
 
 <script type="text/x-red" data-help-name="bull run">
   <p>Creates a BullMQ Worker for the configured queue and emits each job as a Node-RED message.</p>
-  <p>Immediate mode completes the BullMQ job after sending the message. Manual acknowledgement mode keeps the job active until a downstream <code>bull job</code> node completes, fails, or updates it.</p>
-  <p>The output includes <code>msg.payload</code>, serialized <code>msg.job</code> metadata, and <code>msg.bull</code> queue context.</p>
+  <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.Worker.html" target="_blank" rel="noopener noreferrer">Worker</a> and <a href="https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html" target="_blank" rel="noopener noreferrer">WorkerOptions</a>.</p>
+
+  <h3>Options</h3>
+  <ul>
+    <li><b>Name</b>: Optional label shown in the Node-RED workspace.</li>
+    <li><b>Queue</b>: Queue config node used by the worker.</li>
+    <li><b>Completion</b>: <code>Immediate</code> completes the BullMQ job after the message is emitted. <code>Manual acknowledgement</code> keeps the job active until a downstream <code>bull job</code> node completes, fails, or updates it.</li>
+    <li><b>Ack Timeout</b>: Maximum time in milliseconds to wait for manual acknowledgement before the node fails the active job.</li>
+    <li><b>Concurrency</b>: Number of jobs this worker can process at the same time.</li>
+    <li><b>Limiter Max</b>: Optional worker-side rate limit count.</li>
+    <li><b>Limiter Duration</b>: Optional worker-side rate limit window in milliseconds. Set with <b>Limiter Max</b>.</li>
+  </ul>
+
+  <h3>Output message</h3>
+  <ul>
+    <li><code>msg.payload</code>: <code>job.data.payload</code> when present, otherwise the full BullMQ job data.</li>
+    <li><code>msg.job</code>: Serialized job metadata, including id, name, queue name, state-related timestamps, progress, attempts, and options.</li>
+    <li><code>msg.bull</code>: Queue and acknowledgement context used by downstream <code>bull job</code> nodes.</li>
+  </ul>
+
+  <h3>Example</h3>
+  <p>For fire-and-forget processing, use <b>Completion</b> <code>Immediate</code> and wire the output to your processing flow.</p>
+  <p>For a flow that must decide success or failure, use <b>Completion</b> <code>Manual acknowledgement</code>, wire the output to processing nodes, then wire into <code>bull job</code> with <b>Action</b> <code>complete</code> or <code>fail</code>.</p>
 </script>
 
 <script type="text/javascript">
@@ -264,7 +360,37 @@
 
 <script type="text/x-red" data-help-name="bull job">
   <p>Acts on an active job emitted by a manual-mode <code>bull run</code> node.</p>
-  <p>The configured action can be overridden with <code>msg.cmd</code>. The node uses the opaque <code>msg.bull.ackId</code> and does not expose BullMQ lock tokens.</p>
+  <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.Job.html" target="_blank" rel="noopener noreferrer">Job</a> and <a href="https://api.docs.bullmq.io/classes/v5.UnrecoverableError.html" target="_blank" rel="noopener noreferrer">UnrecoverableError</a>.</p>
+
+  <h3>Options</h3>
+  <ul>
+    <li><b>Name</b>: Optional label shown in the Node-RED workspace.</li>
+    <li><b>Action</b>: Default job action. It can be overridden per message with <code>msg.cmd</code>.</li>
+  </ul>
+
+  <h3>Actions</h3>
+  <ul>
+    <li><code>complete</code>: Completes the active job. Use <code>msg.payload</code> as the return value.</li>
+    <li><code>fail</code>: Fails the active job. Use <code>msg.error</code> or <code>msg.payload</code> to describe the error.</li>
+    <li><code>failUnrecoverable</code>: Fails the active job with a BullMQ unrecoverable error so retry attempts are not used.</li>
+    <li><code>progress</code>: Updates job progress from <code>msg.progress</code> or <code>msg.payload</code>.</li>
+    <li><code>rateLimit</code>: Applies a worker rate limit delay. Use <code>msg.payload</code> or <code>msg.duration</code> as milliseconds.</li>
+    <li><code>removeDeduplicationKey</code>: Removes the active job deduplication key.</li>
+    <li><code>getChildrenValues</code>: Reads completed child return values for a flow parent job.</li>
+    <li><code>getFailedChildrenValues</code>: Reads failed child values for a flow parent job.</li>
+    <li><code>removeUnprocessedChildren</code>: Removes children that have not yet been processed.</li>
+  </ul>
+
+  <h3>Example</h3>
+  <p>Update progress, then complete a manual job:</p>
+  <pre>msg.cmd = "progress";
+msg.progress = 50;
+return msg;</pre>
+  <p>Wire that message into another <code>bull job</code> node with <b>Action</b> <code>complete</code>, or set:</p>
+  <pre>msg.cmd = "complete";
+msg.payload = { ok: true };
+return msg;</pre>
+  <p>The node uses the opaque <code>msg.bull.ackId</code> from <code>bull run</code> and does not expose BullMQ lock tokens.</p>
 </script>
 
 <script type="text/javascript">
@@ -302,7 +428,24 @@
 
 <script type="text/x-red" data-help-name="bull events">
   <p>Subscribes to BullMQ QueueEvents and emits global queue events as Node-RED messages.</p>
-  <p>Leave Events empty to subscribe to the documented default event set, or provide a comma/newline separated list.</p>
+  <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.QueueEvents.html" target="_blank" rel="noopener noreferrer">QueueEvents</a>.</p>
+
+  <h3>Options</h3>
+  <ul>
+    <li><b>Name</b>: Optional label shown in the Node-RED workspace.</li>
+    <li><b>Queue</b>: Queue config node whose global events will be observed.</li>
+    <li><b>Events</b>: Comma or newline separated event names. Leave empty to subscribe to the default set. Useful events include <code>completed</code>, <code>failed</code>, <code>progress</code>, <code>delayed</code>, <code>deduplicated</code>, <code>duplicated</code>, <code>waiting</code>, and <code>active</code>.</li>
+  </ul>
+
+  <h3>Output message</h3>
+  <ul>
+    <li><code>msg.topic</code>: Event name.</li>
+    <li><code>msg.payload</code>: BullMQ event payload.</li>
+    <li><code>msg.bull</code>: Queue, event name, and event id metadata.</li>
+  </ul>
+
+  <h3>Example</h3>
+  <p>Set <b>Events</b> to <code>completed, failed, delayed, deduplicated, progress</code> and wire the node to a debug node to inspect queue activity.</p>
 </script>
 
 <script type="text/javascript">
@@ -336,8 +479,36 @@
 </script>
 
 <script type="text/x-red" data-help-name="bull flow">
-  <p>Adds atomic BullMQ parent/child job trees with <code>FlowProducer</code>.</p>
-  <p>Pass the flow tree in <code>msg.payload</code> and optional FlowProducer options in <code>msg.flowopts</code>.</p>
+  <p>Adds atomic BullMQ parent and child job trees with <code>FlowProducer</code>.</p>
+  <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.FlowProducer.html" target="_blank" rel="noopener noreferrer">FlowProducer</a> and <a href="https://api.docs.bullmq.io/types/v5.FlowJob.html" target="_blank" rel="noopener noreferrer">FlowJob</a>.</p>
+
+  <h3>Options</h3>
+  <ul>
+    <li><b>Name</b>: Optional label shown in the Node-RED workspace.</li>
+    <li><b>Queue</b>: Queue config node used by the FlowProducer connection. Each flow job still supplies its own <code>queueName</code>.</li>
+  </ul>
+
+  <h3>Input message</h3>
+  <ul>
+    <li><code>msg.payload</code>: BullMQ flow tree. The root object contains <code>name</code>, <code>queueName</code>, <code>data</code>, optional <code>opts</code>, and optional <code>children</code>.</li>
+    <li><code>msg.flowopts</code>: Optional FlowProducer options applied to the add call.</li>
+  </ul>
+
+  <h3>Example</h3>
+  <pre>msg.payload = {
+  name: "parent-report",
+  queueName: "reports",
+  data: { payload: "parent" },
+  children: [
+    {
+      name: "child-report",
+      queueName: "reports",
+      data: { payload: "child" }
+    }
+  ]
+};
+return msg;</pre>
+  <p>The child jobs are processed before the parent job. A parent can read child results with a manual-mode <code>bull run</code> and a <code>bull job</code> action such as <code>getChildrenValues</code>.</p>
 </script>
 
 <script type="text/javascript">
