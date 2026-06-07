@@ -18,7 +18,7 @@ test("package exposes a Docker deployment matrix test command", () => {
 
   assert.equal(
     packageJson.scripts?.["test:deployments"],
-    "node scripts/run-deployment-tests.js"
+    "node scripts/run-deployment-tests.js",
   );
   assert.ok(exists("scripts/run-deployment-tests.js"));
 });
@@ -106,8 +106,7 @@ test("Docker deployment fixtures avoid common local Redis host ports", () => {
   assert.doesNotMatch(fixtureText, /^port 6379$/m);
   assert.match(fixtureText, /BULLMQ_SINGLE_NOAUTH_PORT:-16379/);
   assert.match(fixtureText, /BULLMQ_SINGLE_AUTH_PORT:-16380/);
-}
-);
+});
 
 test("Docker runner keeps AWS MemoryDB optional and environment-only", () => {
   const runner = read("scripts/run-deployment-tests.js");

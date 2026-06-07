@@ -97,14 +97,14 @@ test("maps legacy repeat commands to Job Scheduler APIs", async () => {
       cmd: "getRepeatableJobByKey",
       jobid: "gateway",
     }),
-    { id: "gateway" }
+    { id: "gateway" },
   );
   assert.equal(
     await dispatchCommand(queue, {
       cmd: "removeRepeatableByKey",
       jobid: "gateway",
     }),
-    true
+    true,
   );
 
   assert.deepEqual(queue.calls.slice(0, 4), [
@@ -142,6 +142,6 @@ test("stopAndRemoveAllJobs removes schedulers, drains, and cleans inactive state
 test("rejects unsupported command names", async () => {
   await assert.rejects(
     () => dispatchCommand(createQueueStub(), { cmd: "unknown" }),
-    /Unsupported bull cmd/
+    /Unsupported bull cmd/,
   );
 });

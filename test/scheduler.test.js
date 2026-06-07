@@ -67,7 +67,7 @@ test("rejects conflicting repeat cron and pattern values", () => {
           },
         },
       }),
-    /repeat\.cron and repeat\.pattern must match/
+    /repeat\.cron and repeat\.pattern must match/,
   );
 });
 
@@ -80,7 +80,7 @@ test("requires a stable scheduler id for scheduled jobs", () => {
           repeat: { cron: "*/5 * * * * *" },
         },
       }),
-    /scheduled jobs require msg\.schedulerId or msg\.jobopts\.jobId/
+    /scheduled jobs require msg\.schedulerId or msg\.jobopts\.jobId/,
   );
 });
 
@@ -117,6 +117,6 @@ test("serializes scheduler metadata without live BullMQ objects", () => {
       name: "default",
       next: 1760000000000,
       pattern: "*/10 * * * * *",
-    }
+    },
   );
 });

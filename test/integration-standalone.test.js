@@ -71,7 +71,7 @@ async function startRedis() {
       "--maxmemory-policy",
       "noeviction",
     ],
-    { stdio: ["ignore", "pipe", "pipe"] }
+    { stdio: ["ignore", "pipe", "pipe"] },
   );
 
   await waitForRedis(port);
@@ -115,7 +115,9 @@ function queueConfig(id, name, redis) {
 }
 
 function readExampleFlow(relativePath) {
-  return JSON.parse(fs.readFileSync(path.join(__dirname, "..", relativePath), "utf8"));
+  return JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", relativePath), "utf8"),
+  );
 }
 
 function messageFromExampleFunction(flow, nodeId, msg) {
@@ -225,7 +227,7 @@ test(
       await stopHelper(userDir);
       redis.stop();
     }
-  }
+  },
 );
 
 test(
@@ -302,7 +304,7 @@ test(
       await stopHelper(userDir);
       redis.stop();
     }
-  }
+  },
 );
 
 test(
@@ -343,7 +345,9 @@ test(
       const addResult = await receiveCommand(
         cmd,
         output,
-        messageFromExampleFunction(example, "fn-repeat-add", { payload: schedulerId })
+        messageFromExampleFunction(example, "fn-repeat-add", {
+          payload: schedulerId,
+        }),
       );
       assert.equal(addResult.payload.name, "default");
       assert.equal(addResult.payload.data.payload, schedulerId);
@@ -351,17 +355,17 @@ test(
       const listResult = await receiveCommand(
         cmd,
         output,
-        messageFromExampleFunction(example, "fn-repeat-get-all", {})
+        messageFromExampleFunction(example, "fn-repeat-get-all", {}),
       );
       assert.deepEqual(
         listResult.payload.map((scheduler) => scheduler.key),
-        [schedulerId]
+        [schedulerId],
       );
 
       const countResult = await receiveCommand(
         cmd,
         output,
-        messageFromExampleFunction(example, "fn-repeat-count", {})
+        messageFromExampleFunction(example, "fn-repeat-count", {}),
       );
       assert.equal(countResult.payload, 1);
 
@@ -370,7 +374,7 @@ test(
         output,
         messageFromExampleFunction(example, "fn-repeat-get-by-key", {
           payload: schedulerId,
-        })
+        }),
       );
       assert.equal(getResult.payload.key, schedulerId);
       assert.equal(getResult.payload.pattern, "30 9,19,29,39,49,59 * * * *");
@@ -380,39 +384,41 @@ test(
         output,
         messageFromExampleFunction(example, "fn-repeat-remove-by-key", {
           payload: schedulerId,
-        })
+        }),
       );
       assert.equal(removeResult.payload, true);
 
       const emptyCount = await receiveCommand(
         cmd,
         output,
-        messageFromExampleFunction(example, "fn-repeat-count", {})
+        messageFromExampleFunction(example, "fn-repeat-count", {}),
       );
       assert.equal(emptyCount.payload, 0);
 
       await receiveCommand(
         cmd,
         output,
-        messageFromExampleFunction(example, "fn-repeat-add", { payload: schedulerId })
+        messageFromExampleFunction(example, "fn-repeat-add", {
+          payload: schedulerId,
+        }),
       );
       const stopResult = await receiveCommand(
         cmd,
         output,
-        messageFromExampleFunction(example, "fn-repeat-stop-all", {})
+        messageFromExampleFunction(example, "fn-repeat-stop-all", {}),
       );
       assert.deepEqual(stopResult.payload.removedSchedulers, [schedulerId]);
       const finalCount = await receiveCommand(
         cmd,
         output,
-        messageFromExampleFunction(example, "fn-repeat-count", {})
+        messageFromExampleFunction(example, "fn-repeat-count", {}),
       );
       assert.equal(finalCount.payload, 0);
     } finally {
       await stopHelper(userDir);
       redis.stop();
     }
-  }
+  },
 );
 
 test(
@@ -455,7 +461,7 @@ test(
       });
       assert.deepEqual(
         delayedJobs.payload.map((job) => job.id),
-        ["delayed-1"]
+        ["delayed-1"],
       );
 
       const promoted = await receiveCommand(cmd, cmdOut, {
@@ -478,10 +484,10 @@ test(
       const prioritized = await receiveCommand(cmd, cmdOut, {
         cmd: "getPrioritized",
       });
-      assert.deepEqual(
-        prioritized.payload.map((job) => job.id).sort(),
-        ["priority-high", "priority-low"]
-      );
+      assert.deepEqual(prioritized.payload.map((job) => job.id).sort(), [
+        "priority-high",
+        "priority-low",
+      ]);
 
       const priorityCounts = await receiveCommand(cmd, cmdOut, {
         cmd: "getCountsPerPriority",
@@ -497,7 +503,7 @@ test(
             duration: 1000,
           })
         ).payload,
-        true
+        true,
       );
       assert.deepEqual(
         (
@@ -505,7 +511,7 @@ test(
             cmd: "getGlobalRateLimit",
           })
         ).payload,
-        { max: 2, duration: 1000 }
+        { max: 2, duration: 1000 },
       );
       assert.equal(
         (
@@ -513,13 +519,13 @@ test(
             cmd: "removeGlobalRateLimit",
           })
         ).payload,
-        2
+        2,
       );
     } finally {
       await stopHelper(userDir);
       redis.stop();
     }
-  }
+  },
 );
 
 test(
@@ -610,7 +616,7 @@ test(
       await stopHelper(userDir);
       redis.stop();
     }
-  }
+  },
 );
 
 test(
@@ -666,5 +672,5 @@ test(
       await stopHelper(userDir);
       redis.stop();
     }
-  }
+  },
 );

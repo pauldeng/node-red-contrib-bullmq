@@ -159,5 +159,5 @@ test(
     } finally {
       await stopHelper(userDir);
     }
-  }
+  },
 );

@@ -18,4 +18,3 @@ Do not open a public issue for suspected credential exposure, remote execution p
 - Examples, docs, logs, snapshots, and fixtures must not include real secrets.
 - BullMQ lock tokens must not be exposed in Node-RED messages.
 - TLS private keys must not be committed unless they are clearly disposable local test fixtures.
-

@@ -15,7 +15,11 @@ const productionFiles = [
 test("production Node.js code uses async/await instead of direct promise construction or chaining", () => {
   for (const file of productionFiles) {
     const source = fs.readFileSync(path.join(repoRoot, file), "utf8");
-    assert.doesNotMatch(source, /\bnew\s+Promise\b/, `${file} constructs a Promise`);
+    assert.doesNotMatch(
+      source,
+      /\bnew\s+Promise\b/,
+      `${file} constructs a Promise`,
+    );
     assert.doesNotMatch(source, /\bPromise\./, `${file} calls Promise.*`);
     assert.doesNotMatch(source, /\.then\s*\(/, `${file} chains .then()`);
     assert.doesNotMatch(source, /\.catch\s*\(/, `${file} chains .catch()`);

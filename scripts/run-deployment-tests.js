@@ -16,8 +16,10 @@ const CLUSTER_PORT_B = process.env.BULLMQ_CLUSTER_PORT_B || "17001";
 const CLUSTER_TLS_PORT_A = process.env.BULLMQ_CLUSTER_TLS_PORT_A || "17002";
 const CLUSTER_TLS_PORT_B = process.env.BULLMQ_CLUSTER_TLS_PORT_B || "17003";
 const SENTINEL_MASTER_PORT = process.env.BULLMQ_SENTINEL_MASTER_PORT || "16381";
-const SENTINEL_REPLICA_PORT_A = process.env.BULLMQ_SENTINEL_REPLICA_PORT_A || "16382";
-const SENTINEL_REPLICA_PORT_B = process.env.BULLMQ_SENTINEL_REPLICA_PORT_B || "16383";
+const SENTINEL_REPLICA_PORT_A =
+  process.env.BULLMQ_SENTINEL_REPLICA_PORT_A || "16382";
+const SENTINEL_REPLICA_PORT_B =
+  process.env.BULLMQ_SENTINEL_REPLICA_PORT_B || "16383";
 const SENTINEL_PORT_A = process.env.BULLMQ_SENTINEL_PORT_A || "26390";
 const SENTINEL_PORT_B = process.env.BULLMQ_SENTINEL_PORT_B || "26391";
 const SENTINEL_PORT_C = process.env.BULLMQ_SENTINEL_PORT_C || "26392";
@@ -46,7 +48,9 @@ function run(command, args, options = {}) {
     throw result.error;
   }
   if (result.status !== 0 && !options.allowFailure) {
-    throw new Error(`${command} ${args.join(" ")} exited with ${result.status}`);
+    throw new Error(
+      `${command} ${args.join(" ")} exited with ${result.status}`,
+    );
   }
   return result;
 }
@@ -117,12 +121,18 @@ function waitForSingleNoAuth() {
     "single-noauth Redis",
     () => {
       const result = dockerCapture(
-        composeArgs("single-noauth", ["exec", "-T", "redis", "redis-cli", "PING"])
+        composeArgs("single-noauth", [
+          "exec",
+          "-T",
+          "redis",
+          "redis-cli",
+          "PING",
+        ]),
       );
       result.ready = /PONG/.test(result.stdout || "");
       return result;
     },
-    30000
+    30000,
   );
 }
 
@@ -138,12 +148,12 @@ function waitForSingleAuth() {
           "redis-cli",
           ...redisAuthArgs(),
           "PING",
-        ])
+        ]),
       );
       result.ready = /PONG/.test(result.stdout || "");
       return result;
     },
-    30000
+    30000,
   );
 }
 
@@ -162,12 +172,12 @@ function waitForSingleTls() {
           "-p",
           SINGLE_TLS_PORT,
           "PING",
-        ])
+        ]),
       );
       result.ready = /PONG/.test(result.stdout || "");
       return result;
     },
-    30000
+    30000,
   );
 }
 
@@ -186,12 +196,12 @@ function waitForClusterAuth() {
           ...redisAuthArgs(),
           "CLUSTER",
           "INFO",
-        ])
+        ]),
       );
       result.ready = /cluster_state:ok/.test(result.stdout || "");
       return result;
     },
-    45000
+    45000,
   );
 }
 
@@ -211,12 +221,12 @@ function waitForClusterTls() {
           CLUSTER_TLS_PORT_A,
           "CLUSTER",
           "INFO",
-        ])
+        ]),
       );
       result.ready = /cluster_state:ok/.test(result.stdout || "");
       return result;
     },
-    45000
+    45000,
   );
 }
 
@@ -235,13 +245,14 @@ function waitForSentinelAuth() {
           "SENTINEL",
           "get-master-addr-by-name",
           "mymaster",
-        ])
+        ]),
       );
-      result.ready = /127\.0\.0\.1/.test(result.stdout || "") &&
+      result.ready =
+        /127\.0\.0\.1/.test(result.stdout || "") &&
         new RegExp(SENTINEL_MASTER_PORT).test(result.stdout || "");
       return result;
     },
-    45000
+    45000,
   );
 }
 
@@ -262,13 +273,14 @@ function waitForSentinelTls() {
           "SENTINEL",
           "get-master-addr-by-name",
           "mymaster",
-        ])
+        ]),
       );
-      result.ready = /127\.0\.0\.1/.test(result.stdout || "") &&
+      result.ready =
+        /127\.0\.0\.1/.test(result.stdout || "") &&
         new RegExp(SENTINEL_TLS_MASTER_PORT).test(result.stdout || "");
       return result;
     },
-    45000
+    45000,
   );
 }
 
