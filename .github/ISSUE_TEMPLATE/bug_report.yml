@@ -1,0 +1,97 @@
+name: Bug report
+description: Report a reproducible problem with the BullMQ Node-RED nodes.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: error-message
+    attributes:
+      label: Error message
+      description: Paste the exact error message, stack trace, and relevant Node-RED log lines. Remove secrets before posting.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducing-flow
+    attributes:
+      label: Reproducing Node-RED flow
+      description: Paste the smallest exported flow that reproduces the issue. Remove credentials and secrets before posting.
+      render: json
+    validations:
+      required: true
+
+  - type: input
+    id: node-red-version
+    attributes:
+      label: Node-RED version
+      placeholder: "4.1.11"
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      placeholder: "18.20.5"
+    validations:
+      required: true
+
+  - type: input
+    id: bullmq-version
+    attributes:
+      label: BullMQ version
+      placeholder: "5.78.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database-server
+    attributes:
+      label: Database server
+      description: Which Redis-compatible in-memory database is backing BullMQ?
+      options:
+        - Redis
+        - Valkey
+        - AWS MemoryDB
+        - Dragonfly
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: database-version
+    attributes:
+      label: Database version
+      placeholder: "Redis 7.2.5, Valkey 8.0.1, AWS MemoryDB Redis 7.1"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "Ubuntu 24.04, Debian 12, Windows 11, macOS 15"
+    validations:
+      required: true
+
+  - type: input
+    id: cpu-architecture
+    attributes:
+      label: CPU architecture
+      placeholder: "x64, arm64, armv7"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: redis-deployment
+    attributes:
+      label: Redis deployment
+      options:
+        - Standalone Redis
+        - Redis Cluster
+        - AWS MemoryDB
+        - Redis Sentinel
+    validations:
+      required: true
