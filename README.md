@@ -1,8 +1,10 @@
-<p align="center">
-  <img src="docs/logo.png" alt="@pauldeng/node-red-contrib-bullmq logo" width="180">
-</p>
-
 # @pauldeng/node-red-contrib-bullmq
+
+[![npm version](https://img.shields.io/npm/v/@pauldeng/node-red-contrib-bullmq.svg)](https://www.npmjs.com/package/@pauldeng/node-red-contrib-bullmq)
+[![npm downloads](https://img.shields.io/npm/dm/@pauldeng/node-red-contrib-bullmq.svg)](https://www.npmjs.com/package/@pauldeng/node-red-contrib-bullmq)
+[![CI](https://github.com/pauldeng/node-red-contrib-bullmq/actions/workflows/ci.yml/badge.svg)](https://github.com/pauldeng/node-red-contrib-bullmq/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/pauldeng/node-red-contrib-bullmq/badge)](https://scorecard.dev/viewer/?uri=github.com/pauldeng/node-red-contrib-bullmq)
+[![License: MIT](https://img.shields.io/npm/l/@pauldeng/node-red-contrib-bullmq.svg)](LICENSE)
 
 Node-RED nodes for BullMQ-backed Redis job queues.
 
@@ -82,14 +84,14 @@ See [docs/COMMANDS.md](docs/COMMANDS.md).
 
 ## Unsupported
 
-| BullMQ feature | Reason |
-| --- | --- |
-| Sandboxed processors | They bypass the Node-RED flow and downstream acknowledgement model. |
-| Custom JavaScript backoff strategies | Executable strategy code is not a safe Node-RED message contract. Use built-in fixed/exponential backoff. |
-| BullMQ Pro features | Pro groups, batches, and observables are not part of the open-source BullMQ dependency. |
-| Built-in dashboard | Use a dedicated queue UI; this package only provides Node-RED nodes. |
-| Arbitrary method proxying | Unrestricted method dispatch is hard to validate, document, secure, and test. |
-| Automatic Bull v4 Redis data migration | Bull and BullMQ do not provide a supported queue-data migration contract. |
+| BullMQ feature                         | Reason                                                                                                    |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Sandboxed processors                   | They bypass the Node-RED flow and downstream acknowledgement model.                                       |
+| Custom JavaScript backoff strategies   | Executable strategy code is not a safe Node-RED message contract. Use built-in fixed/exponential backoff. |
+| BullMQ Pro features                    | Pro groups, batches, and observables are not part of the open-source BullMQ dependency.                   |
+| Built-in dashboard                     | Use a dedicated queue UI; this package only provides Node-RED nodes.                                      |
+| Arbitrary method proxying              | Unrestricted method dispatch is hard to validate, document, secure, and test.                             |
+| Automatic Bull v4 Redis data migration | Bull and BullMQ do not provide a supported queue-data migration contract.                                 |
 
 ## Examples
 

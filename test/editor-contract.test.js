@@ -5,12 +5,12 @@ const test = require("node:test");
 
 const html = fs.readFileSync(
   path.join(__dirname, "..", "bull-queue.html"),
-  "utf8"
+  "utf8",
 );
 
 function helpBlock(type) {
   const pattern = new RegExp(
-    `<script type="text/x-red" data-help-name="${type}">([\\s\\S]*?)<\\/script>`
+    `<script type="text/html" data-help-name="${type}">([\\s\\S]*?)<\\/script>`,
   );
   const match = html.match(pattern);
   assert.ok(match, `missing help block for ${type}`);
@@ -167,7 +167,10 @@ test("help documents runtime node fields and message examples", () => {
   for (const [type, texts] of Object.entries(expected)) {
     const help = helpBlock(type);
     for (const text of texts) {
-      assert.match(help, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+      assert.match(
+        help,
+        new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      );
     }
   }
 });
