@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest a focused improvement for the BullMQ Node-RED nodes.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What Node-RED workflow or BullMQ capability would this support?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe the node, editor field, or message contract you expect.
+    validations:
+      required: true
+

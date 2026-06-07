@@ -5,6 +5,11 @@ const test = require("node:test");
 
 const packageJson = require("../package.json");
 const packageLock = require("../package-lock.json");
+const repoRoot = path.join(__dirname, "..");
+
+function read(relativePath) {
+  return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
+}
 
 test("package metadata targets BullMQ, Node.js 18+, and Node-RED 4.1.x", () => {
   assert.equal(packageJson.name, "@pauldeng/node-red-contrib-bullmq");
@@ -105,5 +110,108 @@ test("GitHub automation and security assets exist for publishing", () => {
     "SECURITY.md",
   ]) {
     assert.ok(fs.existsSync(path.join(__dirname, "..", file)), `${file} missing`);
+  }
+});
+
+test("GitHub CI workflow verifies the Node-RED package release contract", () => {
+  const ci = read(".github/workflows/ci.yml");
+
+  for (const text of [
+    "pull_request:",
+    "push:",
+    "actions/checkout@",
+    "actions/setup-node@",
+    "cache: npm",
+    "18.x",
+    "22.x",
+    "npm ci",
+    "npm test",
+    "npm run test:playwright",
+    "npm audit --omit=dev --audit-level=moderate",
+    "npm pack --dry-run",
+  ]) {
+    assert.match(ci, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
+test("GitHub publish workflow uses npm trusted publishing", () => {
+  const publish = read(".github/workflows/publish.yml");
+
+  for (const text of [
+    "release:",
+    "types: [published]",
+    "contents: read",
+    "id-token: write",
+    "actions/setup-node@",
+    "registry-url: https://registry.npmjs.org/",
+    "npm ci",
+    "npm test",
+    "npm run test:playwright",
+    "npm audit --omit=dev --audit-level=moderate",
+    "npm pack --dry-run",
+    "npm publish --access public",
+  ]) {
+    assert.match(
+      publish,
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    );
+  }
+});
+
+test("Dependabot keeps npm and GitHub Actions dependencies current", () => {
+  const dependabot = read(".github/dependabot.yml");
+
+  for (const text of [
+    "version: 2",
+    'package-ecosystem: "npm"',
+    'package-ecosystem: "github-actions"',
+    'directory: "/"',
+    "interval: weekly",
+  ]) {
+    assert.match(
+      dependabot,
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    );
+  }
+});
+
+test("GitHub community templates collect actionable reports", () => {
+  const bug = read(".github/ISSUE_TEMPLATE/bug_report.yml");
+  const feature = read(".github/ISSUE_TEMPLATE/feature_request.yml");
+  const pr = read(".github/pull_request_template.md");
+
+  for (const text of [
+    "Node-RED version",
+    "Node.js version",
+    "Operating system",
+    "CPU architecture",
+    "BullMQ version",
+    "Error message",
+    "Redis deployment",
+    "Database server",
+    "Database version",
+    "Valkey",
+    "Reproducing Node-RED flow",
+  ]) {
+    assert.match(bug, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+
+  for (const text of ["Use case", "Proposed behavior"]) {
+    assert.match(
+      feature,
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    );
+  }
+
+  assert.doesNotMatch(feature, /Alternatives/);
+
+  for (const text of [
+    "Summary",
+    "Verification",
+    "npm test",
+    "npm run test:playwright",
+    "Documentation",
+  ]) {
+    assert.match(pr, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 });
