@@ -14,4 +14,3 @@ Describe the change and the affected Node-RED nodes or docs.
 
 - [ ] README, node help, examples, and docs are updated when public behavior changes
 - [ ] No Redis, Sentinel, or MemoryDB secrets were added
-

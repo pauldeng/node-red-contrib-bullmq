@@ -50,7 +50,7 @@ test("removes the entry from the registry after completion", async () => {
   assert.equal(
     registry.entries.size,
     0,
-    "settled acknowledgements must not stay in the registry"
+    "settled acknowledgements must not stay in the registry",
   );
   assert.throws(() => registry.get(ackId), /Missing, stale/);
 });
@@ -80,7 +80,7 @@ test("rejectByRunNode settles and drops every entry for that run node", async ()
   const second = registry.create(context({ job: { id: "b" } }), 0);
   const other = registry.create(
     context({ runNodeId: "run-2", job: { id: "c" } }),
-    0
+    0,
   );
 
   const firstWait = first.entry.wait();

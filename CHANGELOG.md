@@ -10,4 +10,3 @@ All notable changes to this package are documented here.
 - Added Redis deployment support for standalone Redis, Redis Cluster, AWS MemoryDB, and Redis Sentinel with ACL and TLS options.
 - Documented Bull v4 migration limits, unsupported BullMQ features, and operational requirements.
 - Lowered the package engine floor to Node.js 18 to match Node-RED 4.x support.
-

@@ -1,13 +1,15 @@
 const { expect, test } = require("@playwright/test");
 
-test("loads BullMQ node definitions in the Node-RED editor", async ({ page }) => {
+test("loads BullMQ node definitions in the Node-RED editor", async ({
+  page,
+}) => {
   await page.goto("/");
   await page.waitForFunction(
     () =>
       window.RED &&
       RED.nodes &&
       RED.nodes.getType &&
-      RED.nodes.getType("bull flow")
+      RED.nodes.getType("bull flow"),
   );
 
   const definitions = await page.evaluate(() => ({

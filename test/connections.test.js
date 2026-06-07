@@ -55,7 +55,8 @@ test("builds Cluster and MemoryDB descriptors with a BullMQ hash-tag prefix", ()
   const config = normalizeQueueConfig({
     name: "basecasts",
     deployment: "cluster",
-    clusterNodes: "clustercfg.memdb.example.test:6379,redis-2.example.test:6380",
+    clusterNodes:
+      "clustercfg.memdb.example.test:6379,redis-2.example.test:6380",
     username: "pdeng",
     password: "secret",
     tls: true,
@@ -124,6 +125,6 @@ test("parses endpoint lists from strings and arrays", () => {
     [
       { host: "host-c", port: 6381 },
       { host: "host-d", port: 6382 },
-    ]
+    ],
   );
 });

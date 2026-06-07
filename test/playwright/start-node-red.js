@@ -11,7 +11,7 @@ const nodeModulesDir = path.join(userDir, "node_modules");
 const packageLink = path.join(
   nodeModulesDir,
   "@pauldeng",
-  "node-red-contrib-bullmq"
+  "node-red-contrib-bullmq",
 );
 const settingsPath = path.join(userDir, "settings.js");
 
@@ -32,7 +32,7 @@ fs.writeFileSync(
   logging: {
     console: { level: "error" }
   }
-};\n`
+};\n`,
 );
 
 const nodeRedBin = path.join(repoRoot, "node_modules", "node-red", "red.js");
@@ -42,7 +42,7 @@ const child = spawn(
   {
     stdio: "inherit",
     cwd: repoRoot,
-  }
+  },
 );
 
 function stop() {

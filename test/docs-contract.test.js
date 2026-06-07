@@ -47,7 +47,10 @@ test("README documents BullMQ migration, supported deployments, and unsupported 
     "maxmemory-policy=noeviction",
     "Bull v4 Redis data is not automatically migrated",
   ]) {
-    assert.match(readme, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(
+      readme,
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
   }
 });
 
@@ -62,7 +65,10 @@ test("release documentation covers npm and Node-RED Flow Library publication", (
     "npm run test:deployments",
     "MEMORYDB_ENABLED=1",
   ]) {
-    assert.match(release, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(
+      release,
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
   }
 });
 
@@ -95,7 +101,10 @@ test("examples include simple BullMQ feature import flows", () => {
     "manual ack worker",
     "flow: parent plus child",
   ]) {
-    assert.match(nodeText, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(
+      nodeText,
+      new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
     assert.match(readme, new RegExp(label.split(":")[0], "i"));
   }
 
@@ -103,13 +112,16 @@ test("examples include simple BullMQ feature import flows", () => {
     "delay: 10000",
     "priority: 1",
     "deduplication: { id: msg.payload }",
-    "msg.cmd = \"setGlobalRateLimit\"",
-    "repeat: { pattern: \"*/1 * * * *\" }",
-    "\"bull events\"",
-    "\"bull job\"",
-    "\"bull flow\"",
+    'msg.cmd = "setGlobalRateLimit"',
+    'repeat: { pattern: "*/1 * * * *" }',
+    '"bull events"',
+    '"bull job"',
+    '"bull flow"',
   ]) {
-    assert.match(searchableText, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(
+      searchableText,
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
   }
 });
 
@@ -132,21 +144,27 @@ test("examples include a dedicated repeatable jobs command flow", () => {
     "repeat: removeRepeatableByKey",
     "repeat: stopAndRemoveAllJobs",
   ]) {
-    assert.match(searchableText, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(
+      searchableText,
+      new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
   }
 
   for (const text of [
-    "msg.cmd = \"add\"",
-    "msg.jobopts = {\"jobId\": msg.payload, \"repeat\": {\"cron\": \"30 9,19,29,39,49,59 * * * *\"}};",
-    "msg.cmd = \"stopAndRemoveAllJobs\"",
-    "msg.cmd = \"getRepeatableJobs\"",
-    "msg.cmd = \"count\"",
-    "msg.cmd = \"removeRepeatableByKey\"",
+    'msg.cmd = "add"',
+    'msg.jobopts = {"jobId": msg.payload, "repeat": {"cron": "30 9,19,29,39,49,59 * * * *"}};',
+    'msg.cmd = "stopAndRemoveAllJobs"',
+    'msg.cmd = "getRepeatableJobs"',
+    'msg.cmd = "count"',
+    'msg.cmd = "removeRepeatableByKey"',
     "msg.jobid = msg.payload",
-    "msg.cmd = \"getRepeatableJobByKey\"",
+    'msg.cmd = "getRepeatableJobByKey"',
     "gateway-FCC23DFFFE0AA2A8",
   ]) {
-    assert.match(searchableText, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(
+      searchableText,
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
   }
 
   assert.match(readme, /repeatable_jobs\.json/);
@@ -166,7 +184,10 @@ test("testing docs describe the executable Docker deployment matrix", () => {
     "sentinel-tls",
     "MEMORYDB_ENABLED=1",
   ]) {
-    assert.match(testing, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(
+      testing,
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    );
   }
 });
 
@@ -232,12 +253,12 @@ test("public package docs and helpers use the BullMQ repo name and Node.js 18 su
   assert.doesNotMatch(
     allText,
     /github\.com\/pauldeng\/node-red-contrib-bull(?!mq)/,
-    "old repository URL must not remain in public docs or helpers"
+    "old repository URL must not remain in public docs or helpers",
   );
   assert.doesNotMatch(
     allText,
     /Node\.js 24|Node\.js 24\+|>=24/,
-    "Node.js 24 must not remain the public runtime floor"
+    "Node.js 24 must not remain the public runtime floor",
   );
   assert.match(allText, /github\.com\/pauldeng\/node-red-contrib-bullmq/);
   assert.match(allText, /Node\.js 18/);
