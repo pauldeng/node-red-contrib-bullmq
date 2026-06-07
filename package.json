@@ -9,8 +9,7 @@
     "lib/",
     "icons/",
     "examples/",
-    "docs/*.md",
-    "docs/logo.png"
+    "docs/*.md"
   ],
   "engines": {
     "node": ">=18"
@@ -20,7 +19,10 @@
     "test:unit": "node --test test/*.test.js",
     "test:integration": "BULLMQ_INTEGRATION=1 node --test test/integration-standalone.test.js",
     "test:deployments": "node scripts/run-deployment-tests.js",
-    "test:playwright": "playwright test"
+    "test:playwright": "playwright test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "npx --yes node-red-dev validate"
   },
   "dependencies": {
     "bullmq": "5.78.0",
@@ -32,7 +34,10 @@
     "bullmq",
     "job",
     "queue",
-    "bull"
+    "bull",
+    "redis",
+    "worker",
+    "jobs"
   ],
   "node-red": {
     "version": ">=4.1.0 <5",

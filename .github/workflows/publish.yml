@@ -6,11 +6,14 @@ on:
 
 permissions:
   contents: read
-  id-token: write
+  id-token: write # OIDC token for npm trusted publishing + provenance
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Configure a "release" environment with a required reviewer in repo
+    # settings to gate publishing behind a manual approval.
+    environment: release
 
     steps:
       - name: Check out repository
@@ -22,6 +25,10 @@ jobs:
           node-version: 22.x
           cache: npm
           registry-url: https://registry.npmjs.org/
+
+      - name: Ensure npm supports trusted publishing
+        # Trusted publishing (OIDC) needs npm >= 11.5.1 and Node >= 22.14.0.
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -42,5 +49,6 @@ jobs:
         run: npm pack --dry-run
 
       - name: Publish to npm
+        # With trusted publishing configured on npmjs.com, no token is needed
+        # and provenance is attached automatically.
         run: npm publish --access public
-

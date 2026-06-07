@@ -15,21 +15,27 @@ test("package metadata targets BullMQ, Node.js 18+, and Node-RED 4.1.x", () => {
   assert.equal(packageJson.name, "@pauldeng/node-red-contrib-bullmq");
   assert.equal(packageJson.version, "1.0.0");
   assert.equal(packageJson.main, "bull-queue.js");
-  assert.equal(packageJson.description, "BullMQ-backed Redis job queue nodes for Node-RED");
+  assert.equal(
+    packageJson.description,
+    "BullMQ-backed Redis job queue nodes for Node-RED",
+  );
   assert.equal(packageJson.repository?.type, "git");
   assert.equal(
     packageJson.repository?.url,
-    "git+https://github.com/pauldeng/node-red-contrib-bullmq.git"
+    "git+https://github.com/pauldeng/node-red-contrib-bullmq.git",
   );
   assert.equal(
     packageJson.homepage,
-    "https://github.com/pauldeng/node-red-contrib-bullmq#readme"
+    "https://github.com/pauldeng/node-red-contrib-bullmq#readme",
   );
   assert.equal(
     packageJson.bugs?.url,
-    "https://github.com/pauldeng/node-red-contrib-bullmq/issues"
+    "https://github.com/pauldeng/node-red-contrib-bullmq/issues",
   );
-  assert.equal(packageJson.publishConfig?.registry, "https://registry.npmjs.org/");
+  assert.equal(
+    packageJson.publishConfig?.registry,
+    "https://registry.npmjs.org/",
+  );
   assert.equal(packageJson.publishConfig?.access, "public");
 
   assert.equal(packageJson.dependencies?.bull, undefined);
@@ -63,7 +69,7 @@ test("package lock root metadata mirrors publish package metadata", () => {
 test("runtime code no longer imports bull or sprintf-js", () => {
   const runtime = fs.readFileSync(
     path.join(__dirname, "..", "bull-queue.js"),
-    "utf8"
+    "utf8",
   );
 
   assert.doesNotMatch(runtime, /require\(["']bull["']\)/);
@@ -72,7 +78,10 @@ test("runtime code no longer imports bull or sprintf-js", () => {
 
 test("published files allowlist ships runtime assets and excludes tests and secrets", () => {
   const files = packageJson.files;
-  assert.ok(Array.isArray(files), "package.json must declare a files allowlist");
+  assert.ok(
+    Array.isArray(files),
+    "package.json must declare a files allowlist",
+  );
 
   for (const entry of [
     "bull-queue.js",
@@ -81,7 +90,6 @@ test("published files allowlist ships runtime assets and excludes tests and secr
     "icons/",
     "examples/",
     "docs/*.md",
-    "docs/logo.png",
   ]) {
     assert.ok(files.includes(entry), `files must include ${entry}`);
   }
@@ -92,7 +100,7 @@ test("published files allowlist ships runtime assets and excludes tests and secr
     assert.doesNotMatch(
       entry,
       /^(test|scripts|\.claude|\.github|docs\/superpowers)/,
-      `files must not publish ${entry}`
+      `files must not publish ${entry}`,
     );
   }
 });
@@ -123,7 +131,10 @@ test("GitHub automation and security assets exist for publishing", () => {
     "CONTRIBUTING.md",
     "SECURITY.md",
   ]) {
-    assert.ok(fs.existsSync(path.join(__dirname, "..", file)), `${file} missing`);
+    assert.ok(
+      fs.existsSync(path.join(__dirname, "..", file)),
+      `${file} missing`,
+    );
   }
 });
 
@@ -137,10 +148,12 @@ test("GitHub CI workflow verifies the Node-RED package release contract", () => 
     "actions/setup-node@",
     "cache: npm",
     "18.x",
+    "20.x",
     "22.x",
     "npm ci",
     "npm test",
     "npm run test:playwright",
+    "npm run format:check",
     "npm audit --omit=dev --audit-level=moderate",
     "npm pack --dry-run",
   ]) {
@@ -167,7 +180,7 @@ test("GitHub publish workflow uses npm trusted publishing", () => {
   ]) {
     assert.match(
       publish,
-      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
   }
 });
@@ -184,7 +197,7 @@ test("Dependabot keeps npm and GitHub Actions dependencies current", () => {
   ]) {
     assert.match(
       dependabot,
-      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
   }
 });
@@ -213,7 +226,7 @@ test("GitHub community templates collect actionable reports", () => {
   for (const text of ["Use case", "Proposed behavior"]) {
     assert.match(
       feature,
-      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
   }
 

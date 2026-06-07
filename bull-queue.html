@@ -1,4 +1,4 @@
-<script type="text/x-red" data-template-name="bull-queue-server">
+<script type="text/html" data-template-name="bull-queue-server">
   <div class="form-row">
     <label for="node-config-input-name"><i class="fa fa-tasks"></i> Queue</label>
     <input type="text" id="node-config-input-name" placeholder="basecasts">
@@ -136,7 +136,7 @@
   })();
 </script>
 
-<script type="text/x-red" data-help-name="bull-queue-server">
+<script type="text/html" data-help-name="bull-queue-server">
   <p>Configures the BullMQ queue name and Redis connection shared by the BullMQ nodes.</p>
   <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.Queue.html" target="_blank" rel="noopener noreferrer">Queue</a> and <a href="https://api.docs.bullmq.io/interfaces/v5.QueueOptions.html" target="_blank" rel="noopener noreferrer">QueueOptions</a>.</p>
 
@@ -170,7 +170,7 @@
   <p>Redis should use <code>maxmemory-policy=noeviction</code>. Bull v4 Redis queue data is not automatically migrated to BullMQ.</p>
 </script>
 
-<script type="text/x-red" data-template-name="bull cmd">
+<script type="text/html" data-template-name="bull cmd">
   <div class="form-row">
     <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
     <input type="text" id="node-input-name">
@@ -181,7 +181,7 @@
   </div>
 </script>
 
-<script type="text/x-red" data-help-name="bull cmd">
+<script type="text/html" data-help-name="bull cmd">
   <p>Executes BullMQ producer and queue-administration commands from an input message.</p>
   <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.Queue.html" target="_blank" rel="noopener noreferrer">Queue</a>, <a href="https://api.docs.bullmq.io/classes/v5.Queue.html#add" target="_blank" rel="noopener noreferrer">Queue.add</a>, <a href="https://api.docs.bullmq.io/types/v5.JobsOptions.html" target="_blank" rel="noopener noreferrer">JobsOptions</a>, <a href="https://api.docs.bullmq.io/types/v5.DeduplicationOptions.html" target="_blank" rel="noopener noreferrer">DeduplicationOptions</a>, <a href="https://api.docs.bullmq.io/classes/v5.Queue.html#setglobalratelimit" target="_blank" rel="noopener noreferrer">Queue.setGlobalRateLimit</a>, and <a href="https://api.docs.bullmq.io/classes/v5.Queue.html#upsertjobscheduler" target="_blank" rel="noopener noreferrer">Queue.upsertJobScheduler</a>.</p>
 
@@ -253,7 +253,7 @@ return msg;</pre>
   });
 </script>
 
-<script type="text/x-red" data-template-name="bull run">
+<script type="text/html" data-template-name="bull run">
   <div class="form-row">
     <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
     <input type="text" id="node-input-name">
@@ -287,7 +287,7 @@ return msg;</pre>
   </div>
 </script>
 
-<script type="text/x-red" data-help-name="bull run">
+<script type="text/html" data-help-name="bull run">
   <p>Creates a BullMQ Worker for the configured queue and emits each job as a Node-RED message.</p>
   <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.Worker.html" target="_blank" rel="noopener noreferrer">Worker</a> and <a href="https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html" target="_blank" rel="noopener noreferrer">WorkerOptions</a>.</p>
 
@@ -337,7 +337,7 @@ return msg;</pre>
   });
 </script>
 
-<script type="text/x-red" data-template-name="bull job">
+<script type="text/html" data-template-name="bull job">
   <div class="form-row">
     <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
     <input type="text" id="node-input-name">
@@ -358,7 +358,7 @@ return msg;</pre>
   </div>
 </script>
 
-<script type="text/x-red" data-help-name="bull job">
+<script type="text/html" data-help-name="bull job">
   <p>Acts on an active job emitted by a manual-mode <code>bull run</code> node.</p>
   <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.Job.html" target="_blank" rel="noopener noreferrer">Job</a> and <a href="https://api.docs.bullmq.io/classes/v5.UnrecoverableError.html" target="_blank" rel="noopener noreferrer">UnrecoverableError</a>.</p>
 
@@ -411,7 +411,7 @@ return msg;</pre>
   });
 </script>
 
-<script type="text/x-red" data-template-name="bull events">
+<script type="text/html" data-template-name="bull events">
   <div class="form-row">
     <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
     <input type="text" id="node-input-name">
@@ -426,7 +426,7 @@ return msg;</pre>
   </div>
 </script>
 
-<script type="text/x-red" data-help-name="bull events">
+<script type="text/html" data-help-name="bull events">
   <p>Subscribes to BullMQ QueueEvents and emits global queue events as Node-RED messages.</p>
   <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.QueueEvents.html" target="_blank" rel="noopener noreferrer">QueueEvents</a>.</p>
 
@@ -467,7 +467,7 @@ return msg;</pre>
   });
 </script>
 
-<script type="text/x-red" data-template-name="bull flow">
+<script type="text/html" data-template-name="bull flow">
   <div class="form-row">
     <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
     <input type="text" id="node-input-name">
@@ -478,7 +478,7 @@ return msg;</pre>
   </div>
 </script>
 
-<script type="text/x-red" data-help-name="bull flow">
+<script type="text/html" data-help-name="bull flow">
   <p>Adds atomic BullMQ parent and child job trees with <code>FlowProducer</code>.</p>
   <p>API reference: <a href="https://api.docs.bullmq.io/classes/v5.FlowProducer.html" target="_blank" rel="noopener noreferrer">FlowProducer</a> and <a href="https://api.docs.bullmq.io/types/v5.FlowJob.html" target="_blank" rel="noopener noreferrer">FlowJob</a>.</p>
 
