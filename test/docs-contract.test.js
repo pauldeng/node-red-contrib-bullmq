@@ -13,6 +13,9 @@ test("agent and user documentation files exist", () => {
   for (const file of [
     "CLAUDE.md",
     "AGENTS.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
     "docs/REFERENCE_MAP.md",
     "docs/ARCHITECTURE.md",
     "docs/NODE_GUIDE.md",
@@ -22,6 +25,7 @@ test("agent and user documentation files exist", () => {
     "docs/MIGRATION.md",
     "docs/COMMANDS.md",
     "docs/CONNECTIONS.md",
+    "docs/RELEASE.md",
   ]) {
     assert.ok(fs.existsSync(path.join(repoRoot, file)), `${file} missing`);
   }
@@ -32,7 +36,10 @@ test("README documents BullMQ migration, supported deployments, and unsupported 
   for (const text of [
     "BullMQ 5.78.0",
     "Node-RED 4.1",
-    "Node.js 24",
+    "Node.js 18",
+    "@pauldeng/node-red-contrib-bullmq",
+    "npm install @pauldeng/node-red-contrib-bullmq",
+    "https://github.com/pauldeng/node-red-contrib-bullmq",
     "Redis Cluster",
     "AWS MemoryDB",
     "Sentinel",
@@ -41,6 +48,21 @@ test("README documents BullMQ migration, supported deployments, and unsupported 
     "Bull v4 Redis data is not automatically migrated",
   ]) {
     assert.match(readme, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
+test("release documentation covers npm and Node-RED Flow Library publication", () => {
+  const release = read("docs/RELEASE.md");
+  for (const text of [
+    "npm pack --dry-run",
+    "npm publish",
+    "trusted publishing",
+    "flows.nodered.org",
+    "Node-RED Flow Library",
+    "npm run test:deployments",
+    "MEMORYDB_ENABLED=1",
+  ]) {
+    assert.match(release, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 });
 
@@ -181,4 +203,42 @@ test("repository text does not contain MemoryDB secret assignments", () => {
   for (const pattern of forbiddenPatterns) {
     assert.doesNotMatch(allText, pattern);
   }
+});
+
+test("public package docs and helpers use the BullMQ repo name and Node.js 18 support", () => {
+  const files = [
+    "README.md",
+    "docs/REFERENCE_MAP.md",
+    "docs/ARCHITECTURE.md",
+    "docs/NODE_GUIDE.md",
+    "docs/CHANGE_WORKFLOW.md",
+    "docs/TESTING.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/MIGRATION.md",
+    "docs/COMMANDS.md",
+    "docs/CONNECTIONS.md",
+    "examples/README.md",
+    "package.json",
+    "package-lock.json",
+    "scripts/run-deployment-tests.js",
+    "test/playwright/start-node-red.js",
+  ];
+
+  const allText = files
+    .filter((file) => fs.existsSync(path.join(repoRoot, file)))
+    .map(read)
+    .join("\n");
+
+  assert.doesNotMatch(
+    allText,
+    /github\.com\/pauldeng\/node-red-contrib-bull(?!mq)/,
+    "old repository URL must not remain in public docs or helpers"
+  );
+  assert.doesNotMatch(
+    allText,
+    /Node\.js 24|Node\.js 24\+|>=24/,
+    "Node.js 24 must not remain the public runtime floor"
+  );
+  assert.match(allText, /github\.com\/pauldeng\/node-red-contrib-bullmq/);
+  assert.match(allText, /Node\.js 18/);
 });

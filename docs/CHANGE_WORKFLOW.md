@@ -2,7 +2,7 @@
 
 ## Behavior Changes
 
-1. Read `GOAL.md` and the relevant docs in `docs/REFERENCE_MAP.md`.
+1. Read `GOAL.md` if present and the relevant docs in `docs/REFERENCE_MAP.md`.
 2. Add or update the smallest failing test.
 3. Run the focused test and confirm the expected failure.
 4. Implement the minimal change.
