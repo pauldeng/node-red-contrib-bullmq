@@ -97,6 +97,20 @@ test("published files allowlist ships runtime assets and excludes tests and secr
   }
 });
 
+test("package metadata and documentation files are not executable", () => {
+  for (const file of [
+    "package.json",
+    "package-lock.json",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+  ]) {
+    const mode = fs.statSync(path.join(__dirname, "..", file)).mode;
+    assert.equal(mode & 0o111, 0, `${file} must not have executable bits`);
+  }
+});
+
 test("GitHub automation and security assets exist for publishing", () => {
   for (const file of [
     ".github/workflows/ci.yml",
