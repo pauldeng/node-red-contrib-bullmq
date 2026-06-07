@@ -6,13 +6,17 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 
 const repoRoot = path.join(__dirname, "..", "..");
-const userDir = path.join(os.tmpdir(), "node-red-contrib-bull-playwright");
+const userDir = path.join(os.tmpdir(), "node-red-contrib-bullmq-playwright");
 const nodeModulesDir = path.join(userDir, "node_modules");
-const packageLink = path.join(nodeModulesDir, "node-red-contrib-bull");
+const packageLink = path.join(
+  nodeModulesDir,
+  "@pauldeng",
+  "node-red-contrib-bullmq"
+);
 const settingsPath = path.join(userDir, "settings.js");
 
 fs.rmSync(userDir, { recursive: true, force: true });
-fs.mkdirSync(nodeModulesDir, { recursive: true });
+fs.mkdirSync(path.dirname(packageLink), { recursive: true });
 fs.symlinkSync(repoRoot, packageLink, "dir");
 fs.writeFileSync(path.join(userDir, "flows.json"), "[]\n");
 fs.writeFileSync(

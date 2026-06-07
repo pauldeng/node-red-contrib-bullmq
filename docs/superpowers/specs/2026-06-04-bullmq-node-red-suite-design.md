@@ -6,13 +6,13 @@
 
 ## Summary
 
-`node-red-contrib-bull` will migrate from Bull 4.5.4 to BullMQ 5.78.0 and become a
+`@pauldeng/node-red-contrib-bullmq` will migrate from Bull 4.5.4 to BullMQ 5.78.0 and become a
 Node-RED-native suite for the open-source BullMQ feature set. The migration will preserve the
 existing `bull-queue-server`, `bull cmd`, and `bull run` node types and the existing message-driven
 command style, including the required `repeat.cron` flow. It will add focused nodes for active-job
 acknowledgement, global events, and parent/child flows.
 
-The package will support Node.js 24 and newer and Node-RED 4.1.x. It will support standalone Redis,
+The package will support Node.js 18 and newer and Node-RED 4.1.x. It will support standalone Redis,
 Redis Cluster, AWS MemoryDB, and Redis Sentinel, with or without authentication and with or without
 TLS. Runtime behavior, editor behavior, deployment compatibility, and timing-sensitive queue
 features will be covered by automated tests.
@@ -21,7 +21,7 @@ features will be covered by automated tests.
 
 1. Replace `bull` with exactly `bullmq` 5.78.0.
 2. Remove `sprintf-js` and use native JavaScript string formatting.
-3. Support Node.js `>=24` and Node-RED `>=4.1.0 <5`.
+3. Support Node.js `>=18` and Node-RED `>=4.1.0 <5`.
 4. Preserve existing Node-RED flows wherever BullMQ permits:
    - keep `bull-queue-server`, `bull cmd`, and `bull run`;
    - keep `msg.cmd` command dispatch;
@@ -95,7 +95,7 @@ and shared agent guidance:
 
 `package.json` will declare:
 
-- `engines.node`: `>=24`
+- `engines.node`: `>=18`
 - `node-red.version`: `>=4.1.0 <5`
 - runtime dependencies:
   - `bullmq`: `5.78.0`
@@ -802,7 +802,7 @@ The migration is complete only when:
 
 1. `bull` and `sprintf-js` are absent from dependencies and runtime code.
 2. BullMQ is pinned to exactly 5.78.0.
-3. package metadata targets Node.js 24+ and Node-RED 4.1.x.
+3. package metadata targets Node.js 18+ and Node-RED 4.1.x.
 4. all six Node-RED node types are implemented and documented.
 5. legacy flow and repeat-cron compatibility tests pass.
 6. every supported feature in this design has runtime and integration evidence.
