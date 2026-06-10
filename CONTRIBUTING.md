@@ -2,7 +2,7 @@
 
 ## Development Setup
 
-Use Node.js 18 or newer and install dependencies from the lockfile:
+Use Node.js 22.9 or newer (the development dependency on Node-RED 5 requires it) and install dependencies from the lockfile:
 
 ```sh
 npm ci

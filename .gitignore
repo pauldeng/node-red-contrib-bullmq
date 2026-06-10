@@ -35,6 +35,9 @@ jspm_packages
 GOAL.md
 .codegraph/
 
+# Local credentials (never commit)
+MEMORYDB-CREDENTIAL
+
 # Optional npm cache directory
 .npm
 
