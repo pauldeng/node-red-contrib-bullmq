@@ -2,7 +2,7 @@
 
 All notable changes to this package are documented here.
 
-## Unreleased
+## 1.0.1 - 2026-06-10
 
 - Fixed Node-RED shutdown and redeploy hanging while Redis is unreachable: graceful closes are now capped at one second before the underlying sockets are force-disconnected, so Ctrl-C exits promptly. This works around BullMQ `QueueEvents.close()` blocking forever on a connection that never became ready.
 - `bull cmd` now connects its shared queue eagerly and reports the real Redis connection state instead of a static green "configured" dot.
