@@ -1,0 +1,278 @@
+const assert = require("node:assert/strict");
+const { EventEmitter, once } = require("node:events");
+const { setTimeout: delay } = require("node:timers/promises");
+const test = require("node:test");
+
+const registerBullMQNodes = require("../bull-queue");
+
+// Nothing listens on this port: every connection attempt fails immediately
+// and ioredis keeps retrying, which is exactly the state a Node-RED user is
+// in when Redis is down and they press Ctrl-C.
+const DEAD_REDIS = {
+  name: "shutdowncasts",
+  address: "127.0.0.1",
+  port: "6399",
+};
+
+const CLOSE_DEADLINE_MS = 4000;
+
+function createRED(options = {}) {
+  const registered = new Map();
+  return {
+    registered,
+    nodes: {
+      createNode(node) {
+        Object.setPrototypeOf(node, EventEmitter.prototype);
+        EventEmitter.call(node);
+        node.id = options.id || "node-under-test";
+        node.status = options.status || (() => {});
+        node.error = options.error || (() => {});
+        node.send = () => {};
+      },
+      getNode() {
+        return options.getNode ? options.getNode() : null;
+      },
+      registerType(type, constructor, registerOptions) {
+        registered.set(type, { constructor, options: registerOptions });
+      },
+    },
+  };
+}
+
+function buildServerNode(RED) {
+  const Server = RED.registered.get("bull-queue-server").constructor;
+  const server = {};
+  Server.call(server, DEAD_REDIS);
+  return server;
+}
+
+async function invokeClose(node) {
+  const handler = node.listeners("close")[0];
+  assert.ok(handler, "node must register a close handler");
+  const signal = new EventEmitter();
+  handler.call(node, false, (err) => signal.emit("done", err));
+  const [err] = await once(signal, "done");
+  if (err) {
+    throw err;
+  }
+}
+
+async function settleWithin(promise, ms) {
+  let outcome = "pending";
+  (async () => {
+    try {
+      await promise;
+      outcome = "closed";
+    } catch (err) {
+      outcome = "rejected";
+    }
+  })();
+
+  const deadline = Date.now() + ms;
+  while (outcome === "pending" && Date.now() < deadline) {
+    await delay(25);
+  }
+  return outcome === "pending" ? "timed out" : outcome;
+}
+
+function forceCleanup(server) {
+  for (const resource of server.resources || []) {
+    try {
+      if (resource.blockingConnection) {
+        resource.blockingConnection.disconnect();
+      }
+      resource.disconnect();
+    } catch {
+      // best-effort cleanup so the test process can exit
+    }
+  }
+}
+
+test("bull-queue-server close settles promptly when Redis is unreachable", async () => {
+  const RED = createRED();
+  registerBullMQNodes(RED);
+  const server = buildServerNode(RED);
+
+  try {
+    server.getQueue();
+    await delay(200);
+
+    const result = await settleWithin(invokeClose(server), CLOSE_DEADLINE_MS);
+    assert.equal(
+      result,
+      "closed",
+      "config node close must settle while Redis is unreachable",
+    );
+
+    // ioredis keeps reporting status "reconnecting" after a disconnect, so
+    // assert the meaningful invariant instead: no reconnection attempt fires
+    // after close. The default retry backoff is capped at 2000ms, so a quiet
+    // 2200ms window proves the retry timer is gone and the process can exit.
+    let attemptsAfterClose = 0;
+    const countAttempt = () => {
+      attemptsAfterClose += 1;
+    };
+    for (const resource of server.resources) {
+      if (typeof resource.status === "string") {
+        resource.on("reconnecting", countAttempt);
+        resource.on("connect", countAttempt);
+      }
+    }
+    await delay(2200);
+    assert.equal(
+      attemptsAfterClose,
+      0,
+      "raw Redis connections must stop reconnecting after close",
+    );
+  } finally {
+    forceCleanup(server);
+  }
+});
+
+test("bull run close settles promptly when Redis is unreachable", async () => {
+  let server;
+  const RED = createRED({
+    getNode() {
+      return server;
+    },
+  });
+  registerBullMQNodes(RED);
+  server = buildServerNode(RED);
+  const RunNode = RED.registered.get("bull run").constructor;
+  const runNode = {};
+
+  try {
+    RunNode.call(runNode, { queue: "queue", completionMode: "immediate" });
+    await delay(200);
+
+    const result = await settleWithin(invokeClose(runNode), CLOSE_DEADLINE_MS);
+    assert.equal(
+      result,
+      "closed",
+      "bull run close must settle while Redis is unreachable",
+    );
+
+    const serverResult = await settleWithin(
+      invokeClose(server),
+      CLOSE_DEADLINE_MS,
+    );
+    assert.equal(serverResult, "closed");
+  } finally {
+    forceCleanup(server);
+  }
+});
+
+test("bull events close settles promptly when Redis is unreachable", async () => {
+  let server;
+  const RED = createRED({
+    getNode() {
+      return server;
+    },
+  });
+  registerBullMQNodes(RED);
+  server = buildServerNode(RED);
+  const EventsNode = RED.registered.get("bull events").constructor;
+  const eventsNode = {};
+
+  try {
+    EventsNode.call(eventsNode, { queue: "queue" });
+    await delay(200);
+
+    const result = await settleWithin(
+      invokeClose(eventsNode),
+      CLOSE_DEADLINE_MS,
+    );
+    assert.equal(
+      result,
+      "closed",
+      "bull events close must settle while Redis is unreachable",
+    );
+
+    const serverResult = await settleWithin(
+      invokeClose(server),
+      CLOSE_DEADLINE_MS,
+    );
+    assert.equal(serverResult, "closed");
+  } finally {
+    forceCleanup(server);
+  }
+});
+
+test("bull flow close settles promptly when Redis is unreachable", async () => {
+  let server;
+  const RED = createRED({
+    getNode() {
+      return server;
+    },
+  });
+  registerBullMQNodes(RED);
+  server = buildServerNode(RED);
+  const FlowNode = RED.registered.get("bull flow").constructor;
+  const flowNode = {};
+
+  try {
+    FlowNode.call(flowNode, { queue: "queue" });
+    await delay(200);
+
+    const result = await settleWithin(invokeClose(flowNode), CLOSE_DEADLINE_MS);
+    assert.equal(
+      result,
+      "closed",
+      "bull flow close must settle while Redis is unreachable",
+    );
+
+    const serverResult = await settleWithin(
+      invokeClose(server),
+      CLOSE_DEADLINE_MS,
+    );
+    assert.equal(serverResult, "closed");
+  } finally {
+    forceCleanup(server);
+  }
+});
+
+test("bull run reports a uniform disconnected status when Redis is unreachable", async () => {
+  let server;
+  const statuses = [];
+  const RED = createRED({
+    getNode() {
+      return server;
+    },
+    status(status) {
+      statuses.push(status);
+    },
+  });
+  registerBullMQNodes(RED);
+  server = buildServerNode(RED);
+  const RunNode = RED.registered.get("bull run").constructor;
+  const runNode = {};
+
+  try {
+    RunNode.call(runNode, { queue: "queue", completionMode: "immediate" });
+
+    const deadline = Date.now() + 3000;
+    while (
+      Date.now() < deadline &&
+      !statuses.some((status) => status.fill === "red")
+    ) {
+      await delay(50);
+    }
+
+    const redStatuses = statuses.filter((status) => status.fill === "red");
+    assert.ok(redStatuses.length > 0, "a red status must be reported");
+    for (const status of redStatuses) {
+      assert.deepEqual(status, {
+        fill: "red",
+        shape: "ring",
+        text: "disconnected",
+      });
+    }
+  } finally {
+    try {
+      await settleWithin(invokeClose(runNode), CLOSE_DEADLINE_MS);
+      await settleWithin(invokeClose(server), CLOSE_DEADLINE_MS);
+    } finally {
+      forceCleanup(server);
+    }
+  }
+});

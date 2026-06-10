@@ -8,6 +8,7 @@ const {
   Worker,
 } = require("bullmq");
 const IORedis = require("ioredis");
+const { setTimeout: sleep } = require("node:timers/promises");
 
 const {
   AcknowledgementRegistry,
@@ -41,20 +42,83 @@ const DEFAULT_EVENTS = [
   "waiting-children",
 ];
 
+// How long a graceful close may take before the underlying sockets are
+// force-disconnected so Node-RED shutdown and redeploy are never blocked by
+// an unreachable Redis server.
+const CLOSE_GRACE_MS = 1000;
+
+async function settleWithin(promise, ms) {
+  let settled = false;
+  (async () => {
+    try {
+      await promise;
+    } catch (err) {
+      // a failed graceful close still counts as settled
+    }
+    settled = true;
+  })();
+
+  const deadline = Date.now() + ms;
+  while (!settled && Date.now() < deadline) {
+    await sleep(25);
+  }
+  return settled ? "settled" : "timeout";
+}
+
+function disconnectClient(client) {
+  if (client && typeof client.disconnect === "function") {
+    try {
+      client.disconnect(false);
+    } catch (err) {
+      // best effort: the socket may already be gone
+    }
+  }
+}
+
+function forceDisconnect(resource) {
+  if (!resource) {
+    return;
+  }
+  if (typeof resource.status === "string") {
+    // Raw ioredis connection.
+    disconnectClient(resource);
+    return;
+  }
+  // BullMQ resource. Its public disconnect() awaits a connection promise that
+  // never settles while Redis is unreachable, so reach for the underlying
+  // ioredis clients directly (BullMQ is pinned to exactly 5.78.0).
+  if (resource.connection) {
+    disconnectClient(resource.connection._client);
+  }
+  if (resource.blockingConnection) {
+    disconnectClient(resource.blockingConnection._client);
+  }
+}
+
 async function closeResource(resource) {
   if (!resource) {
     return;
   }
-  if (typeof resource.close === "function") {
-    await resource.close();
+
+  if (typeof resource.close !== "function") {
+    // Raw ioredis connection: quit() never settles (or leaves a reconnect
+    // loop running) while the server is unreachable, so only quit ready
+    // connections and force-disconnect everything else.
+    if (resource.status === "ready" && typeof resource.quit === "function") {
+      if ((await settleWithin(resource.quit(), CLOSE_GRACE_MS)) === "timeout") {
+        forceDisconnect(resource);
+      }
+    } else {
+      forceDisconnect(resource);
+    }
     return;
   }
-  if (typeof resource.quit === "function") {
-    await resource.quit();
-    return;
-  }
-  if (typeof resource.disconnect === "function") {
-    resource.disconnect();
+
+  // BullMQ resource: QueueEvents.close() blocks forever on a connection that
+  // never became ready, so cap the graceful close and force-disconnect the
+  // sockets when it does not settle in time.
+  if ((await settleWithin(resource.close(), CLOSE_GRACE_MS)) === "timeout") {
+    forceDisconnect(resource);
   }
 }
 
@@ -91,12 +155,26 @@ function parseEventFilter(value) {
     .filter(Boolean);
 }
 
-function attachErrorListener(resource, node, label) {
+// One status vocabulary for every queue-backed node: connecting (yellow),
+// connected (green), disconnected (red).
+function setConnecting(node) {
+  node.status({ fill: "yellow", shape: "ring", text: "connecting" });
+}
+
+function setConnected(node) {
+  node.status({ fill: "green", shape: "dot", text: "connected" });
+}
+
+function setDisconnected(node) {
+  node.status({ fill: "red", shape: "ring", text: "disconnected" });
+}
+
+function attachErrorListener(resource, node) {
   if (!resource || typeof resource.on !== "function") {
     return;
   }
   resource.on("error", (err) => {
-    node.status({ fill: "red", shape: "ring", text: `${label}: error` });
+    setDisconnected(node);
     node.error(err);
   });
 }
@@ -150,7 +228,7 @@ module.exports = function registerBullMQNodes(RED) {
     node.createConnection = function createConnection(role, owner = node) {
       const descriptor = buildRedisDescriptor(node.config, role);
       const connection = createRedisConnection(descriptor, IORedis);
-      attachErrorListener(connection, owner, `Redis ${role}`);
+      attachErrorListener(connection, owner);
       node.resources.add(connection);
       return connection;
     };
@@ -162,9 +240,16 @@ module.exports = function registerBullMQNodes(RED) {
           node.config.queueName,
           buildBullMQOptions(node.config, node.producerConnection)
         );
-        attachErrorListener(node.queue, node, "BullMQ queue");
+        attachErrorListener(node.queue, node);
       }
       return node.queue;
+    };
+
+    // The producer connection backs the shared queue used by bull cmd nodes;
+    // exposing it lets those nodes mirror the real connection state.
+    node.getProducerConnection = function getProducerConnection() {
+      node.getQueue();
+      return node.producerConnection;
     };
 
     // Runtime nodes pass themselves as owner and attach their own resource
@@ -239,7 +324,23 @@ module.exports = function registerBullMQNodes(RED) {
     }
 
     node.bullConn.register(node);
-    node.status({ fill: "green", shape: "dot", text: "configured" });
+
+    // Watch the shared producer connection so the visible status reflects
+    // whether Redis is actually reachable instead of a static "configured".
+    const connection = node.bullConn.getProducerConnection();
+    const connectionListeners = {
+      ready: () => setConnected(node),
+      error: () => setDisconnected(node),
+      close: () => setDisconnected(node),
+    };
+    for (const [event, listener] of Object.entries(connectionListeners)) {
+      connection.on(event, listener);
+    }
+    if (connection.status === "ready") {
+      setConnected(node);
+    } else {
+      setConnecting(node);
+    }
 
     node.on("input", async function onInput(msg, send, done) {
       try {
@@ -253,6 +354,9 @@ module.exports = function registerBullMQNodes(RED) {
     });
 
     node.on("close", function onClose(removed, done) {
+      for (const [event, listener] of Object.entries(connectionListeners)) {
+        connection.removeListener(event, listener);
+      }
       node.bullConn.deregister(node, done);
     });
   }
@@ -309,14 +413,10 @@ module.exports = function registerBullMQNodes(RED) {
     };
 
     node.worker = node.bullQueue.createWorker(processor, workerOptions, node);
-    attachErrorListener(node.worker, node, "BullMQ worker");
-    node.worker.on("ready", () =>
-      node.status({ fill: "green", shape: "dot", text: "connected" })
-    );
-    node.worker.on("closed", () =>
-      node.status({ fill: "red", shape: "ring", text: "closed" })
-    );
-    node.status({ fill: "yellow", shape: "ring", text: "connecting" });
+    attachErrorListener(node.worker, node);
+    node.worker.on("ready", () => setConnected(node));
+    node.worker.on("closed", () => setDisconnected(node));
+    setConnecting(node);
 
     node.on("close", async function onClose(removed, done) {
       acknowledgements.rejectByRunNode(
@@ -426,7 +526,7 @@ module.exports = function registerBullMQNodes(RED) {
 
     node.bullConn.register(node);
     node.queueEvents = node.bullConn.createQueueEvents(node);
-    attachErrorListener(node.queueEvents, node, "BullMQ events");
+    attachErrorListener(node.queueEvents, node);
     const events = parseEventFilter(n.events);
     for (const event of events) {
       node.queueEvents.on(event, (payload, eventId) => {
@@ -443,9 +543,11 @@ module.exports = function registerBullMQNodes(RED) {
     }
     async function updateReadyStatus() {
       try {
+        setConnecting(node);
         await node.queueEvents.waitUntilReady();
-        node.status({ fill: "green", shape: "dot", text: "connected" });
+        setConnected(node);
       } catch (err) {
+        setDisconnected(node);
         node.error(err);
       }
     }
@@ -476,14 +578,14 @@ module.exports = function registerBullMQNodes(RED) {
 
     node.bullConn.register(node);
     node.flowProducer = node.bullConn.createFlowProducer(node);
-    attachErrorListener(node.flowProducer, node, "BullMQ flow");
+    attachErrorListener(node.flowProducer, node);
     async function updateReadyStatus() {
       try {
-        node.status({ fill: "yellow", shape: "ring", text: "connecting" });
+        setConnecting(node);
         await node.flowProducer.waitUntilReady();
-        node.status({ fill: "green", shape: "dot", text: "connected" });
+        setConnected(node);
       } catch (err) {
-        node.status({ fill: "red", shape: "ring", text: "connection error" });
+        setDisconnected(node);
         node.error(err);
       }
     }
