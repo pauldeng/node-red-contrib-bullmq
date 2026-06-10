@@ -11,7 +11,7 @@ function read(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
 }
 
-test("package metadata targets BullMQ, Node.js 18+, and Node-RED 4.1.x", () => {
+test("package metadata targets BullMQ, Node.js 18+, and Node-RED 4.1/5.x", () => {
   assert.equal(packageJson.name, "@pauldeng/node-red-contrib-bullmq");
   assert.equal(packageJson.version, "1.0.0");
   assert.equal(packageJson.main, "bull-queue.js");
@@ -44,10 +44,10 @@ test("package metadata targets BullMQ, Node.js 18+, and Node-RED 4.1.x", () => {
   assert.match(packageJson.dependencies?.ioredis || "", /^5\./);
 
   assert.equal(packageJson.engines?.node, ">=18");
-  assert.equal(packageJson["node-red"]?.version, ">=4.1.0 <5");
+  assert.equal(packageJson["node-red"]?.version, ">=4.1.0 <6");
 
   assert.equal(packageJson.devDependencies?.["@playwright/test"], "1.60.0");
-  assert.equal(packageJson.devDependencies?.["node-red"], "4.1.11");
+  assert.equal(packageJson.devDependencies?.["node-red"], "5.0.0");
   assert.equal(packageJson.devDependencies?.prettier, "3.8.3");
   assert.ok(packageJson.devDependencies?.["node-red-node-test-helper"]);
 
@@ -147,9 +147,8 @@ test("GitHub CI workflow verifies the Node-RED package release contract", () => 
     "actions/checkout@",
     "actions/setup-node@",
     "cache: npm",
-    "18.x",
-    "20.x",
     "22.x",
+    "24.x",
     "npm ci",
     "npm test",
     "npm run test:playwright",
