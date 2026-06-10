@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const { setImmediate: tick } = require("node:timers/promises");
+const { promisify } = require("node:util");
 const test = require("node:test");
 
 const registerBullMQNodes = require("../bull-queue");
@@ -153,7 +154,7 @@ test("bull flow reports FlowProducer errors on its own node status", async () =>
   assert.deepEqual(statuses.at(-1), {
     fill: "red",
     shape: "ring",
-    text: "BullMQ flow: error",
+    text: "disconnected",
   });
   assert.equal(errors.length, 1, "a single error must be reported once");
 });
@@ -221,7 +222,7 @@ test("bull run reports worker errors on its own node status", () => {
   assert.deepEqual(statuses.at(-1), {
     fill: "red",
     shape: "ring",
-    text: "BullMQ worker: error",
+    text: "disconnected",
   });
   assert.equal(errors.length, 1);
 });
@@ -267,9 +268,249 @@ test("bull events reports QueueEvents errors on its own node status", async () =
   assert.deepEqual(statuses.at(-1), {
     fill: "red",
     shape: "ring",
-    text: "BullMQ events: error",
+    text: "disconnected",
   });
   assert.equal(errors.length, 1);
+});
+
+function createCmdQueueConfig(connection) {
+  return {
+    config: { queueName: "cmdcasts" },
+    register(node) {
+      node.status({ fill: "grey", shape: "ring", text: "configured" });
+    },
+    getQueue() {
+      return {};
+    },
+    getProducerConnection() {
+      return connection;
+    },
+    deregister(node, done) {
+      done();
+    },
+  };
+}
+
+test("bull cmd reflects the shared producer connection state", () => {
+  const statuses = [];
+  const connection = new EventEmitter();
+  connection.status = "connecting";
+  const RED = createRED({
+    getNode() {
+      return createCmdQueueConfig(connection);
+    },
+    status(status) {
+      statuses.push(status);
+    },
+  });
+
+  registerBullMQNodes(RED);
+  const CmdNode = RED.registered.get("bull cmd").constructor;
+  CmdNode.call({}, { queue: "queue" });
+
+  assert.ok(
+    !statuses.some(
+      (status) => status.fill === "green" && status.text === "configured",
+    ),
+    "must not show a green configured dot while Redis is not connected",
+  );
+  assert.deepEqual(statuses.at(-1), {
+    fill: "yellow",
+    shape: "ring",
+    text: "connecting",
+  });
+
+  connection.emit("ready");
+  assert.deepEqual(statuses.at(-1), {
+    fill: "green",
+    shape: "dot",
+    text: "connected",
+  });
+
+  connection.emit("close");
+  assert.deepEqual(statuses.at(-1), {
+    fill: "red",
+    shape: "ring",
+    text: "disconnected",
+  });
+});
+
+test("bull cmd shows connected immediately when the connection is already ready", () => {
+  const statuses = [];
+  const connection = new EventEmitter();
+  connection.status = "ready";
+  const RED = createRED({
+    getNode() {
+      return createCmdQueueConfig(connection);
+    },
+    status(status) {
+      statuses.push(status);
+    },
+  });
+
+  registerBullMQNodes(RED);
+  const CmdNode = RED.registered.get("bull cmd").constructor;
+  CmdNode.call({}, { queue: "queue" });
+
+  assert.deepEqual(statuses.at(-1), {
+    fill: "green",
+    shape: "dot",
+    text: "connected",
+  });
+});
+
+test("bull cmd removes its connection listeners on close", async () => {
+  const connection = new EventEmitter();
+  connection.status = "connecting";
+  const RED = createRED({
+    getNode() {
+      return createCmdQueueConfig(connection);
+    },
+  });
+
+  registerBullMQNodes(RED);
+  const CmdNode = RED.registered.get("bull cmd").constructor;
+  const node = {};
+  CmdNode.call(node, { queue: "queue" });
+
+  assert.ok(
+    connection.listenerCount("ready") > 0,
+    "bull cmd must watch the shared connection",
+  );
+
+  const handler = node.listeners("close")[0];
+  await promisify(handler).call(node, false);
+
+  assert.equal(connection.listenerCount("ready"), 0);
+  assert.equal(connection.listenerCount("close"), 0);
+  assert.equal(connection.listenerCount("error"), 0);
+});
+
+test("bull events shows connecting before the connection is ready", async () => {
+  const statuses = [];
+  let released = false;
+  const queueEvents = new EventEmitter();
+  queueEvents.waitUntilReady = async function waitUntilReady() {
+    while (!released) {
+      await tick();
+    }
+  };
+  queueEvents.close = async function close() {};
+  const queueConfig = {
+    config: { queueName: "eventcasts" },
+    register(node) {
+      node.status({ fill: "grey", shape: "ring", text: "configured" });
+    },
+    createQueueEvents() {
+      return queueEvents;
+    },
+    deregister(node, done) {
+      done();
+    },
+  };
+  const RED = createRED({
+    getNode() {
+      return queueConfig;
+    },
+    status(status) {
+      statuses.push(status);
+    },
+  });
+
+  registerBullMQNodes(RED);
+  const EventsNode = RED.registered.get("bull events").constructor;
+  EventsNode.call({}, { queue: "queue" });
+
+  assert.deepEqual(statuses.at(-1), {
+    fill: "yellow",
+    shape: "ring",
+    text: "connecting",
+  });
+
+  released = true;
+  await tick();
+  await tick();
+
+  assert.deepEqual(statuses.at(-1), {
+    fill: "green",
+    shape: "dot",
+    text: "connected",
+  });
+});
+
+test("bull flow shows disconnected when the initial connection fails", async () => {
+  const statuses = [];
+  const errors = [];
+  const flowProducer = new EventEmitter();
+  flowProducer.waitUntilReady = async function waitUntilReady() {
+    throw new Error("connect ECONNREFUSED");
+  };
+  flowProducer.close = async function close() {};
+  const queueConfig = {
+    config: { queueName: "flowcasts" },
+    register(node) {
+      node.status({ fill: "grey", shape: "ring", text: "configured" });
+    },
+    createFlowProducer() {
+      return flowProducer;
+    },
+    deregister(node, done) {
+      done();
+    },
+  };
+  const RED = createRED({
+    getNode() {
+      return queueConfig;
+    },
+    status(status) {
+      statuses.push(status);
+    },
+    error(err) {
+      errors.push(err);
+    },
+  });
+
+  registerBullMQNodes(RED);
+  const FlowNode = RED.registered.get("bull flow").constructor;
+  FlowNode.call({}, { queue: "queue" });
+  await tick();
+
+  assert.deepEqual(statuses.at(-1), {
+    fill: "red",
+    shape: "ring",
+    text: "disconnected",
+  });
+  assert.equal(errors.length, 1);
+});
+
+test("config node exposes the shared producer connection", async () => {
+  const RED = createRED();
+  registerBullMQNodes(RED);
+  const Server = RED.registered.get("bull-queue-server").constructor;
+
+  const node = {};
+  Server.call(node, { name: "cmdcasts" });
+  // Avoid opening a real Redis connection.
+  node.createConnection = function createConnection() {
+    const connection = new EventEmitter();
+    connection.options = {};
+    connection.status = "ready";
+    return connection;
+  };
+
+  const connection = node.getProducerConnection();
+  try {
+    assert.ok(connection, "producer connection must be created on demand");
+    assert.equal(connection, node.producerConnection);
+    assert.ok(node.queue, "the shared queue must be created with it");
+    assert.equal(node.getProducerConnection(), connection);
+  } finally {
+    try {
+      await node.queue.close();
+    } catch (err) {
+      // best-effort cleanup
+    }
+  }
 });
 
 test("config node createWorker does not attach its own error listener", async () => {
