@@ -125,4 +125,4 @@ Use [docs/TESTING.md](docs/TESTING.md) for Docker, Playwright, and MemoryDB test
 - [Connection Guide](docs/CONNECTIONS.md)
 - [Migration Guide](docs/MIGRATION.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [CHANGELOG](CHANGELOG.md)
+- [Changelog](CHANGELOG.md)
