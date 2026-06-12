@@ -12,7 +12,10 @@ This package targets BullMQ 5.78.0 and Node-RED 4.1 or 5.x. It preserves the leg
 
 ## Installation
 
+To install - either use the manage palette option in the editor, or change to your Node-RED user directory.
+
 ```sh
+cd ~/.node-red
 npm install @pauldeng/node-red-contrib-bullmq
 ```
 
@@ -122,3 +125,4 @@ Use [docs/TESTING.md](docs/TESTING.md) for Docker, Playwright, and MemoryDB test
 - [Connection Guide](docs/CONNECTIONS.md)
 - [Migration Guide](docs/MIGRATION.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [CHANGELOG](CHANGELOG.md)
